@@ -22,9 +22,10 @@ var (
 	procGetDeviceCount        = dll.NewProc("ZKFPM_GetDeviceCount")
 	procOpenDevice            = dll.NewProc("ZKFPM_OpenDevice")
 	procCloseDevice           = dll.NewProc("ZKFPM_CloseDevice")
-	procGetParameters         = dll.NewProc("ZKFPM_GetParameters")
 	procAcquireFingerprint    = dll.NewProc("ZKFPM_AcquireFingerprint")
 	procAcquireFingerprintImg = dll.NewProc("ZKFPM_AcquireFingerprintImage")
+	procGetParameters         = dll.NewProc("ZKFPM_GetParameters")
+	procSetParameters         = dll.NewProc("ZKFPM_SetParameters")
 )
 
 // Device represents an opened fingerprint device.
@@ -103,12 +104,13 @@ func (d *Device) ImageSize() (int, error) {
 	}
 
 	var size uint32
+	n := uint32(unsafe.Sizeof(size)) // [in] buffer size, [out] returned size
 
 	r1, _, _ := procGetParameters.Call(
 		uintptr(d.handle),
 		uintptr(paramImageSize),
 		uintptr(unsafe.Pointer(&size)),
-		uintptr(unsafe.Sizeof(size)),
+		uintptr(unsafe.Pointer(&n)), // pointer to the length, not the length itself
 	)
 
 	if err := check(int32(r1)); err != nil {
@@ -168,5 +170,61 @@ func (d *Device) AcquireFingerprintImage(image []byte) error {
 		uintptr(len(image)),
 	)
 
+	return check(int32(r1))
+}
+
+
+// GetParameter reads a device parameter (ZKFPM_GetParameters).
+//
+// size is the number of bytes to allocate for the value, based on the
+// parameter code (4 for an Int, 4 for the VID/PID array, larger for strings).
+// The returned slice is cut to the size reported by the SDK.
+func (d *Device) GetParameter(code int, size int) ([]byte, error) {
+	if d == nil || d.handle == 0 {
+		return nil, ErrInvalidHandle
+	}
+	if size <= 0 {
+		return nil, ErrInvalidParam
+	}
+ 
+	value := make([]byte, size)
+	n := uint32(size) // [in] buffer size, [out] returned size
+ 
+	r1, _, _ := procGetParameters.Call(
+		uintptr(d.handle),
+		uintptr(code),
+		uintptr(unsafe.Pointer(&value[0])),
+		uintptr(unsafe.Pointer(&n)),
+	)
+ 
+	if err := check(int32(r1)); err != nil {
+		return nil, err
+	}
+	if int(n) > len(value) {
+		return nil, ErrOperationFailed
+	}
+ 
+	return value[:n], nil
+}
+ 
+// SetParameter writes a device parameter (ZKFPM_SetParameters).
+//
+// value holds the raw parameter bytes (a 4-byte little-endian integer for
+// Int parameters). Its length is passed as the parameter data length.
+func (d *Device) SetParameter(code int, value []byte) error {
+	if d == nil || d.handle == 0 {
+		return ErrInvalidHandle
+	}
+	if len(value) == 0 {
+		return ErrInvalidParam
+	}
+ 
+	r1, _, _ := procSetParameters.Call(
+		uintptr(d.handle),
+		uintptr(code),
+		uintptr(unsafe.Pointer(&value[0])),
+		uintptr(len(value)),
+	)
+ 
 	return check(int32(r1))
 }
