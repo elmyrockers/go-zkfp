@@ -40,7 +40,12 @@ func Init() error {
 	}
 
 	r1, _, _ := procInit.Call()
-	return check(int32(r1))
+	
+	code := int32(r1)
+	if code == 1 { // already initialized
+		return nil
+	}
+	return check(code)
 }
 
 // Terminate terminates the ZKFinger SDK.
