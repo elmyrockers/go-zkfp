@@ -1,0 +1,475 @@
+\documentclass[11pt, a4paper]{article}
+\usepackage[a4paper, margin=2.5cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[english]{babel}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\definecolor{primarycolor}{RGB}{0, 102, 204}
+\definecolor{codebg}{RGB}{245, 247, 250}
+
+\lstset{
+    backgroundcolor=\color{codebg},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    rulecolor=\color{lightgray},
+    xleftmargin=0pt,
+    xrightmargin=0pt
+}
+
+\title{\textbf{go-zkfp Development Guide}\\Go Binding for ZKFinger Reader SDK (libzkfp.dll)}
+\author{Based on ZKTeco ZKFinger Reader SDK C API Version 2.0}
+\date{}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Overview}
+\texttt{go-zkfp} is a Go binding for \texttt{libzkfp.dll}, the ZKFinger Reader SDK from ZKTeco. It lets Go programs enumerate ZKTeco fingerprint readers, capture images and templates, and register, identify and match fingerprints. This document describes the Go API. Each Go function maps one-to-one to a C function of the ZKFinger Reader SDK (C API Version 2.0).
+
+\section{Disclaimer}
+\texttt{go-zkfp} is an unofficial binding and does not include the ZKTeco SDK. \texttt{libzkfp.dll} must be obtained by installing the ZKFinger SDK from ZKTeco, and its use is subject to the ZKTeco license: you shall not use, copy, modify, lease, or transfer any part of the SDK beyond the clauses of the original SDK document.
+
+\section{System Requirements}
+\begin{enumerate}
+    \item Operating system: Windows XP or a later version
+    \item Go 1.18 or later
+    \item ZKFinger SDK 5.x / ZKOnline SDK 5.x installed (provides \texttt{libzkfp.dll} and the reader driver)
+    \item The architecture of the Go program (\texttt{GOARCH=386} or \texttt{amd64}) must match the architecture of \texttt{libzkfp.dll}
+    \item cgo and a C compiler are \textbf{not} required: the library is loaded at runtime with \texttt{golang.org/x/sys/windows} (\texttt{windows.NewLazyDLL}), whose calls use the \texttt{stdcall} convention that the SDK requires
+\end{enumerate}
+
+\section{Installation and Deployment}
+\begin{enumerate}
+    \item Install ZKFinger SDK 5.x / ZKOnline SDK 5.x.
+    \item Add the package to your module:
+\begin{lstlisting}
+go get github.com/elmyrockers/go-zkfp
+\end{lstlisting}
+    \item Make \texttt{libzkfp.dll} loadable: place it next to your executable, or in a directory on \texttt{PATH}. To load it from a custom location call \texttt{zkfp.SetDLLPath} \textbf{before} any other function.
+    \item Import the package:
+\begin{lstlisting}
+import zkfp "github.com/elmyrockers/go-zkfp"
+\end{lstlisting}
+\end{enumerate}
+
+\section{Description of Go Interfaces}
+
+\subsection{Design Conventions}
+\begin{itemize}
+    \item \textbf{Errors.} Instead of returning an integer code, functions return a Go \texttt{error}. A non-zero SDK result is returned as a value of type \texttt{zkfp.Error} (see Appendix 2), so it can be compared with \texttt{errors.Is} or \texttt{errors.As}.
+    \item \textbf{Handles.} The C \texttt{HANDLE} types are wrapped in two Go types: \texttt{*Device} (reader instance) and \texttt{*DB} (algorithm cache). Functions that take a handle in C are methods in Go.
+    \item \textbf{Buffers.} The C pattern of ``pointer + size'' pairs becomes a Go \texttt{[]byte}. Output buffers are allocated by the binding and returned already trimmed to the actual returned size.
+    \item \textbf{Cleanup.} \texttt{Close} methods are idempotent: calling them more than once is safe and returns \texttt{nil}.
+    \item \textbf{Concurrency.} The SDK is not documented as thread-safe. A \texttt{*Device} or \texttt{*DB} must not be used from several goroutines at the same time unless the caller serializes access. The binding does not add locks of its own.
+\end{itemize}
+
+\subsubsection{Function Mapping}
+\begin{table}[htbp]
+\centering
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\textbf{C function} & \textbf{Go function / method} \\
+\midrule
+\texttt{ZKFPM\_Init} & \texttt{zkfp.Init} \\
+\texttt{ZKFPM\_Terminate} & \texttt{zkfp.Terminate} \\
+\texttt{ZKFPM\_GetDeviceCount} & \texttt{zkfp.GetDeviceCount} \\
+\texttt{ZKFPM\_OpenDevice} & \texttt{zkfp.OpenDevice} \\
+\texttt{ZKFPM\_CloseDevice} & \texttt{(*Device).Close} \\
+\texttt{ZKFPM\_SetParameters} & \texttt{(*Device).SetParameter} \\
+\texttt{ZKFPM\_GetParameters} & \texttt{(*Device).GetParameter} \\
+\texttt{ZKFPM\_AcquireFingerprint} & \texttt{(*Device).AcquireFingerprint} \\
+\texttt{ZKFPM\_AcquireFingerprintImage} & \texttt{(*Device).AcquireFingerprintImage} \\
+\texttt{ZKFPM\_DBInit} & \texttt{zkfp.NewDB} \\
+\texttt{ZKFPM\_DBFree} & \texttt{(*DB).Close} \\
+\texttt{ZKFPM\_DBMerge} & \texttt{(*DB).Merge} \\
+\texttt{ZKFPM\_DBAdd} & \texttt{(*DB).Add} \\
+\texttt{ZKFPM\_DBDel} & \texttt{(*DB).Delete} \\
+\texttt{ZKFPM\_DBClear} & \texttt{(*DB).Clear} \\
+\texttt{ZKFPM\_DBCount} & \texttt{(*DB).Count} \\
+\texttt{ZKFPM\_DBIdentify} & \texttt{(*DB).Identify} \\
+\texttt{ZKFPM\_DBMatch} & \texttt{(*DB).Match} \\
+\texttt{ZKFPM\_ExtractFromImage} & \texttt{(*DB).ExtractFromImage} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Type Definition}
+\begin{lstlisting}
+package zkfp
+
+// Device is an opened fingerprint reader (wraps the C device HANDLE).
+type Device struct { /* unexported */ }
+
+// DB is an algorithm cache (wraps the C hDBCache HANDLE).
+type DB struct { /* unexported */ }
+
+// Error is a non-zero result code returned by libzkfp.dll.
+type Error int32
+
+func (e Error) Error() string // e.g. "zkfp: no device connected (-3)"
+
+// Format selects the template format (parameter code 10001).
+type Format int32
+
+const (
+    FormatANSI378 Format = 0 // ANSI INCITS 378
+    FormatISO     Format = 1 // ISO/IEC 19794-2
+)
+\end{lstlisting}
+
+\subsubsection{Constants}
+\begin{enumerate}
+    \item Maximum length of a template \\
+    \textbf{[Definition]} \texttt{const MaxTemplateSize = 2048}
+    \item Fingerprint 1:1 threshold parameter code \\
+    \textbf{[Definition]} \texttt{const ParamThreshold = 1}
+    \item Fingerprint 1:N threshold parameter code \\
+    \textbf{[Definition]} \texttt{const ParamMThreshold = 2}
+\end{enumerate}
+The device parameter codes of Appendix 1 are exported as \texttt{Param...} constants, and the error codes of Appendix 2 as \texttt{Err...} values.
+
+\subsection{Interface Description}
+
+\subsubsection{SetDLLPath}
+\textbf{[Function]} \texttt{func SetDLLPath(path string)} \\
+\textbf{[Purpose]} This function is used to choose the location of \texttt{libzkfp.dll}. It has no C counterpart. \\
+\textbf{[Parameter Description]} \texttt{path} - Full path of \texttt{libzkfp.dll} \\
+\textbf{[Note]} It must be called before any other function of the package. If it is not called, the default DLL search order of Windows is used.
+
+\subsubsection{Init}
+\textbf{[Function]} \texttt{func Init() error} \\
+\textbf{[Purpose]} This function is used to initialize resources. It must be called once before any other SDK function. \\
+\textbf{[Parameter Description]} None \\
+\textbf{[Return Value]}
+\begin{itemize}
+    \item \texttt{nil}: Succeeded. The C result \texttt{1} (already initialized) is also reported as \texttt{nil}.
+    \item \texttt{error}: Failed (See Appendix 2.)
+\end{itemize}
+
+\subsubsection{Terminate}
+\textbf{[Function]} \texttt{func Terminate() error} \\
+\textbf{[Purpose]} This function is used to release resources. Close all \texttt{*Device} and \texttt{*DB} values before calling it. \\
+\textbf{[Parameter Description]} None \\
+\textbf{[Return Value]}
+\begin{itemize}
+    \item \texttt{nil}: Succeeded
+    \item \texttt{error}: Failed (See Appendix 2.)
+\end{itemize}
+
+\subsubsection{GetDeviceCount}
+\textbf{[Function]} \texttt{func GetDeviceCount() (int, error)} \\
+\textbf{[Purpose]} This function is used to acquire the number of devices. \\
+\textbf{[Parameter Description]} None \\
+\textbf{[Return Value]}
+\begin{itemize}
+    \item \texttt{n, nil}: Device count (\texttt{n >= 0})
+    \item \texttt{0, error}: The function fails to be called (See Appendix 2.)
+\end{itemize}
+
+\subsubsection{OpenDevice}
+\textbf{[Function]} \texttt{func OpenDevice(index int) (*Device, error)} \\
+\textbf{[Purpose]} This function is used to start a device. \\
+\textbf{[Parameter Description]} \texttt{index} - Device index (starting from 0) \\
+\textbf{[Return Value]}
+\begin{itemize}
+    \item \texttt{*Device, nil}: Device operation instance
+    \item \texttt{nil, error}: Failed. The C function reports failure with a null handle, so the binding returns \texttt{ErrOpenDevice} (\texttt{-6}).
+\end{itemize}
+
+\subsubsection{Device.Close}
+\textbf{[Function]} \texttt{func (d *Device) Close() error} \\
+\textbf{[Purpose]} This function is used to shut down a device. Calling it again on a closed device returns \texttt{nil}. \\
+\textbf{[Parameter Description]} None \\
+\textbf{[Return Value]}
+\begin{itemize}
+    \item \texttt{nil}: Succeeded
+    \item \texttt{error}: Failed (See Appendix 2.)
+\end{itemize}
+
+\subsubsection{Device.SetParameter}
+\textbf{[Function]} \texttt{func (d *Device) SetParameter(code int, value []byte) error} \\
+\textbf{[Purpose]} This function is used to set fingerprint reader parameters. \\
+\textbf{[Parameter Description]}
+\begin{itemize}
+    \item \texttt{code}: Parameter code (For details, see Appendix 1.)
+    \item \texttt{value}: Parameter value. The length of the slice is passed as \texttt{cbParamValue}.
+\end{itemize}
+\textbf{[Return Value]}
+\begin{itemize}
+    \item \texttt{nil}: Succeeded
+    \item \texttt{error}: Failed (See Appendix 2.)
+\end{itemize}
+\textbf{[Helpers]} \texttt{SetParameterInt(code, v int32) error} encodes a 4-byte integer. \texttt{SetFormat(f Format) error}, \texttt{SetLED(color LED, on bool) error} and \texttt{Buzz(on bool) error} are shortcuts for the corresponding codes.
+
+\subsubsection{Device.GetParameter}
+\textbf{[Function]} \texttt{func (d *Device) GetParameter(code int, size int) ([]byte, error)} \\
+\textbf{[Purpose]} This function is used to acquire fingerprint reader parameters. \\
+\textbf{[Parameter Description]}
+\begin{itemize}
+    \item \texttt{code}: Parameter code
+    \item \texttt{size}: Size of the buffer to allocate for the value, based on the parameter code (4 for an \texttt{Int}, 4 for the VID/PID array, a larger buffer such as 64 for strings)
+\end{itemize}
+\textbf{[Return Value]}
+\begin{itemize}
+    \item \texttt{value, nil}: The returned parameter value, already cut to the size reported by the SDK (\texttt{cbParamValue [out]})
+    \item \texttt{nil, error}: Failed (See Appendix 2.)
+\end{itemize}
+\textbf{[Helpers]} \texttt{GetParameterInt(code int) (int32, error)}, \texttt{ImageWidth() (int, error)}, \texttt{ImageHeight() (int, error)}, \texttt{ImageSize() (int, error)}, \texttt{VIDPID() (vid, pid uint16, err error)}, \texttt{Vendor() (string, error)}, \texttt{ProductName() (string, error)} and \texttt{SerialNumber() (string, error)}.
+
+\subsubsection{Device.AcquireFingerprint}
+\textbf{[Function]} \texttt{func (d *Device) AcquireFingerprint(image []byte) ([]byte, error)} \\
+\textbf{[Purpose]} This function is used to capture a template (and the fingerprint image). \\
+\textbf{[Parameter Description]}
+\begin{itemize}
+    \item \texttt{image [out]}: Buffer that receives the fingerprint image. Its length is passed as \texttt{cbFPImage}, and must be at least \texttt{width*height} bytes (use \texttt{ImageSize}).
+\end{itemize}
+\textbf{[Return Value]}
+\begin{itemize}
+    \item \texttt{template, nil}: The captured template, trimmed to the actual size (the binding pre-allocates \texttt{MaxTemplateSize} = 2048 bytes)
+    \item \texttt{nil, error}: Failed (See Appendix 2.)
+\end{itemize}
+\textbf{[Note]} The call returns \texttt{ErrCaptureFailed} (\texttt{-8}) when no finger is on the sensor. Applications normally poll in a loop and ignore this error until a finger is detected.
+
+\subsubsection{Device.AcquireFingerprintImage}
+\textbf{[Function]} \texttt{func (d *Device) AcquireFingerprintImage(image []byte) error} \\
+\textbf{[Purpose]} This function is used to capture an image only. \\
+\textbf{[Parameter Description]} \texttt{image [out]} - Buffer that receives the fingerprint image (length passed as \texttt{cbFPImage}) \\
+\textbf{[Return Value]}
+\begin{itemize}
+    \item \texttt{nil}: Succeeded
+    \item \texttt{error}: Failed (See Appendix 2.)
+\end{itemize}
+
+\subsubsection{NewDB}
+\textbf{[Function]} \texttt{func NewDB() (*DB, error)} \\
+\textbf{[Purpose]} This function is used to create an algorithm cache. \\
+\textbf{[Parameter Description]} None \\
+\textbf{[Return Value]}
+\begin{itemize}
+    \item \texttt{*DB, nil}: Cache instance
+    \item \texttt{nil, error}: Failed (the C function returned a null handle)
+\end{itemize}
+
+\subsubsection{DB.Close}
+\textbf{[Function]} \texttt{func (db *DB) Close() error} \\
+\textbf{[Purpose]} This function is used to release an algorithm cache. It is idempotent. \\
+\textbf{[Parameter Description]} None \\
+\textbf{[Return Value]}
+\begin{itemize}
+    \item \texttt{nil}: Succeeded
+    \item \texttt{error}: Failed (See Appendix 2.)
+\end{itemize}
+
+\subsubsection{DB.Merge}
+\textbf{[Function]} \texttt{func (db *DB) Merge(t1, t2, t3 []byte) ([]byte, error)} \\
+\textbf{[Purpose]} This function is used to combine three pre-registered fingerprint templates into one registered template. \\
+\textbf{[Parameter Description]} \texttt{t1, t2, t3} - Pre-registered fingerprint templates 1, 2, and 3 (three captures of the same finger) \\
+\textbf{[Return Value]}
+\begin{itemize}
+    \item \texttt{regTemplate, nil}: The registered template, trimmed to the actual size (the binding pre-allocates 2048 bytes)
+    \item \texttt{nil, error}: Failed, for example \texttt{ErrMergeFailed} (\texttt{-22})
+\end{itemize}
+
+\subsubsection{DB.Add}
+\textbf{[Function]} \texttt{func (db *DB) Add(fid uint32, template []byte) error} \\
+\textbf{[Purpose]} This function is used to add a registered fingerprint template to the cache. \\
+\textbf{[Parameter Description]}
+\begin{itemize}
+    \item \texttt{fid}: Fingerprint ID (32-bit unsigned integer larger than 0)
+    \item \texttt{template}: Registered template (as returned by \texttt{Merge})
+\end{itemize}
+\textbf{[Return Value]}
+\begin{itemize}
+    \item \texttt{nil}: Succeeded
+    \item \texttt{error}: Failed (See Appendix 2.)
+\end{itemize}
+
+\subsubsection{DB.Delete}
+\textbf{[Function]} \texttt{func (db *DB) Delete(fid uint32) error} \\
+\textbf{[Purpose]} This function is used to delete the registered template of a specified ID. \\
+\textbf{[Parameter Description]} \texttt{fid} - Fingerprint ID \\
+\textbf{[Return Value]}
+\begin{itemize}
+    \item \texttt{nil}: Succeeded
+    \item \texttt{error}: Failed (See Appendix 2.)
+\end{itemize}
+
+\subsubsection{DB.Clear}
+\textbf{[Function]} \texttt{func (db *DB) Clear() error} \\
+\textbf{[Purpose]} This function is used to clear the cache. \\
+\textbf{[Parameter Description]} None \\
+\textbf{[Return Value]}
+\begin{itemize}
+    \item \texttt{nil}: Succeeded
+    \item \texttt{error}: Failed (See Appendix 2.)
+\end{itemize}
+
+\subsubsection{DB.Count}
+\textbf{[Function]} \texttt{func (db *DB) Count() (uint32, error)} \\
+\textbf{[Purpose]} This function is used to acquire the number of fingerprint templates in the cache. \\
+\textbf{[Parameter Description]} None \\
+\textbf{[Return Value]}
+\begin{itemize}
+    \item \texttt{count, nil}: Fingerprint count
+    \item \texttt{0, error}: Failed (See Appendix 2.)
+\end{itemize}
+
+\subsubsection{DB.Identify}
+\textbf{[Function]} \texttt{func (db *DB) Identify(template []byte) (fid, score uint32, err error)} \\
+\textbf{[Purpose]} This function is used to conduct 1:N comparison against all templates in the cache. \\
+\textbf{[Parameter Description]} \texttt{template} - Fingerprint template to look for (the length is passed as \texttt{cbTemplate}) \\
+\textbf{[Return Value]}
+\begin{itemize}
+    \item \texttt{fid, score, nil}: The matching fingerprint ID and the comparison score
+    \item \texttt{0, 0, error}: Failed, for example \texttt{ErrMatchFailed} (\texttt{-20}) when no template matches (See Appendix 2.)
+\end{itemize}
+
+\subsubsection{DB.Match}
+\textbf{[Function]} \texttt{func (db *DB) Match(t1, t2 []byte) (int, error)} \\
+\textbf{[Purpose]} This function is used to compare whether two fingerprint templates match (1:1 comparison). \\
+\textbf{[Parameter Description]} \texttt{t1}, \texttt{t2} - The two templates (their lengths are passed as \texttt{cbTemplate1} and \texttt{cbTemplate2}) \\
+\textbf{[Return Value]}
+\begin{itemize}
+    \item \texttt{score, nil}: Comparison score (\texttt{score >= 0}). The caller decides whether the score is high enough to be accepted as a match.
+    \item \texttt{0, error}: The C function returned a negative value, which is converted to an \texttt{Error} (See Appendix 2.)
+\end{itemize}
+
+\subsubsection{DB.ExtractFromImage}
+\textbf{[Function]} \texttt{func (db *DB) ExtractFromImage(path string, dpi uint32) ([]byte, error)} \\
+\textbf{[Purpose]} This function is used to extract a fingerprint template from a BMP or JPG file. \\
+\textbf{[Parameter Description]}
+\begin{itemize}
+    \item \texttt{path}: Full path of a file
+    \item \texttt{dpi}: Image DPI
+\end{itemize}
+\textbf{[Return Value]}
+\begin{itemize}
+    \item \texttt{template, nil}: The extracted template, trimmed to the actual size
+    \item \texttt{nil, error}: Failed (See Appendix 2.)
+\end{itemize}
+\textbf{[Note]} Only the SDK of the standard version supports this function. Other versions return \texttt{ErrNotSupported} (\texttt{-4}).
+
+\section{Usage Example}
+The typical flow is: initialize, open a reader, capture three times, merge into a registered template, add it to the cache, then identify later captures.
+\begin{lstlisting}
+if err := zkfp.Init(); err != nil { log.Fatal(err) }
+defer zkfp.Terminate()
+
+dev, err := zkfp.OpenDevice(0)
+if err != nil { log.Fatal(err) }
+defer dev.Close()
+
+db, err := zkfp.NewDB()
+if err != nil { log.Fatal(err) }
+defer db.Close()
+
+size, _ := dev.ImageSize()
+img := make([]byte, size)
+
+capture := func() []byte {
+    for {
+        tpl, err := dev.AcquireFingerprint(img)
+        if err == nil { return tpl }
+        if !errors.Is(err, zkfp.ErrCaptureFailed) { log.Fatal(err) }
+        time.Sleep(100 * time.Millisecond) // no finger yet
+    }
+}
+
+// Registration: three captures of the same finger
+t1, t2, t3 := capture(), capture(), capture()
+reg, err := db.Merge(t1, t2, t3)
+if err != nil { log.Fatal(err) }
+if err := db.Add(1, reg); err != nil { log.Fatal(err) }
+
+// Identification (1:N)
+fid, score, err := db.Identify(capture())
+if err != nil { log.Fatal(err) }
+fmt.Println("matched id", fid, "score", score)
+\end{lstlisting}
+
+\newpage
+\section{Appendixes}
+
+\subsection{Appendix 1: List of Common Parameter Codes}
+\begin{table}[htbp]
+\centering
+\begin{tabularx}{\textwidth}{l l l l X}
+\toprule
+\textbf{Code} & \textbf{Go constant} & \textbf{Property} & \textbf{Data Type} & \textbf{Description} \\
+\midrule
+1 & \texttt{ParamImageWidth} & Read-only & Int & Image width \\
+2 & \texttt{ParamImageHeight} & Read-only & Int & Image height \\
+3 & \texttt{ParamImageDPI} & Read-write (LIVEID20R only) & Int & Image DPI (750/1000 recommended for children) \\
+106 & \texttt{ParamImageSize} & Read-only & Int & Image data size \\
+1015 & \texttt{ParamVIDPID} & Read-only & 4-byte array & VID \& PID bytes (former two indicate VID, latter two PID) \\
+2002 & \texttt{ParamAntiFake} & Read-write (LIVEID20R only) & Int & Anti-fake function (1: enable; 0: disable) \\
+2004 & \texttt{ParamAntiFakeStatus} & Read-only & Int & True if lower five bits are all 1's (\texttt{value\&31==31}) \\
+1101 & \texttt{ParamVendor} & Read-only & String & Vendor information \\
+1102 & \texttt{ParamProductName} & Read-only & String & Product name \\
+1103 & \texttt{ParamSerialNumber} & Read-only & String & Device SN \\
+101 & \texttt{ParamLEDWhite} & Write-only & Int & 1 indicates white light blinks; 0 indicates disabled \\
+102 & \texttt{ParamLEDGreen} & Write-only & Int & 1 indicates green light blinks; 0 indicates disabled \\
+103 & \texttt{ParamLEDRed} & Write-only & Int & 1 indicates red light blinks; 0 indicates disabled \\
+104 & \texttt{ParamBuzzer} & Write-only & Int & 1 indicates buzzing started; 0 indicates disabled \\
+10001 & \texttt{ParamFormat} & Write-only (ISO/ANSI only) & Int & 0: ANSI378 (\texttt{FormatANSI378}); 1: ISO 19794-2 (\texttt{FormatISO}) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+Integer values are passed as 4-byte little-endian values. Strings are returned as NUL-terminated byte strings, and the string helpers trim the terminator.
+
+\subsection{Appendix 2: Descriptions of Returned Error Values}
+Every error is an \texttt{zkfp.Error}. Test for a specific one with \texttt{errors.Is(err, zkfp.ErrNoDevice)}, or read the raw code with \texttt{errors.As}.
+\begin{table}[htbp]
+\centering
+\begin{tabularx}{\textwidth}{r l X}
+\toprule
+\textbf{Code} & \textbf{Go value} & \textbf{Description} \\
+\midrule
+0 & (\texttt{nil}) & Operation succeeded \\
+1 & (\texttt{nil}) & Initialized (already initialized; \texttt{Init} treats it as success) \\
+-1 & \texttt{ErrInitLib} & Failed to initialize the algorithm library \\
+-2 & \texttt{ErrInitCapture} & Failed to initialize the capture library \\
+-3 & \texttt{ErrNoDevice} & No device connected \\
+-4 & \texttt{ErrNotSupported} & Not supported by the interface \\
+-5 & \texttt{ErrInvalidParam} & Invalid parameter \\
+-6 & \texttt{ErrOpenDevice} & Failed to start the device \\
+-7 & \texttt{ErrInvalidHandle} & Invalid handle \\
+-8 & \texttt{ErrCaptureFailed} & Failed to capture the image \\
+-9 & \texttt{ErrExtractFailed} & Failed to extract the fingerprint template \\
+-10 & \texttt{ErrAbort} & Suspension operation \\
+-11 & \texttt{ErrNoMemory} & Insufficient memory \\
+-12 & \texttt{ErrBusy} & The fingerprint is being captured (the device is busy) \\
+-13 & \texttt{ErrAddFailed} & Failed to add the fingerprint template to the memory \\
+-14 & \texttt{ErrDeleteFailed} & Failed to delete the fingerprint template \\
+-17 & \texttt{ErrOperationFailed} & Operation failed (other error) \\
+-18 & \texttt{ErrCaptureCancelled} & Capture cancelled \\
+-20 & \texttt{ErrMatchFailed} & Fingerprint comparison failed \\
+-22 & \texttt{ErrMergeFailed} & Failed to combine registered fingerprint templates \\
+-23 & \texttt{ErrOpenFile} & Opening the file failed \\
+-24 & \texttt{ErrImageProcess} & Image processing failed \\
+\bottomrule
+\end{tabularx}
+\end{table}
+Any other code is returned as an \texttt{Error} with that numeric value and the message ``unknown error''.
+
+\subsection{Appendix 3: Notes for Implementers}
+\begin{itemize}
+    \item The binding uses \texttt{golang.org/x/sys/windows} instead of the frozen standard \texttt{syscall} package. Each \texttt{ZKFPM\_*} symbol is resolved lazily with \texttt{windows.NewLazyDLL("libzkfp.dll").NewProc(...)}. Calls go through \texttt{Proc.Call}, so no cgo is needed. The dependency is fetched automatically by \texttt{go get}.
+    \item \texttt{windows.NewLazySystemDLL} is \textbf{not} used, because it only searches the Windows system directory, where \texttt{libzkfp.dll} is normally not installed. When \texttt{SetDLLPath} is given a full path, the DLL is loaded from exactly that path, which also avoids DLL preloading (search-order hijacking).
+    \item Handles returned by the DLL are stored as \texttt{uintptr}. A zero handle means failure.
+    \item Go slices passed to the DLL must stay referenced until the call returns (\texttt{runtime.KeepAlive}), and the DLL must not keep the pointers after the call returns.
+    \item \texttt{ZKFPM\_GetParameters} and the other \texttt{[in/out]} size arguments are implemented by passing a pointer to a \texttt{uint32} that holds the buffer size on entry and the returned size on exit.
+\end{itemize}
+
+\end{document}
