@@ -34,8 +34,11 @@ type Device struct {
 
 // Init initializes the ZKFinger SDK.
 func Init() error {
-	r1, _, _ := procInit.Call()
+	if err := dll.Load(); err != nil {
+		return err
+	}
 
+	r1, _, _ := procInit.Call()
 	return check(int32(r1))
 }
 
