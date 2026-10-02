@@ -1,5 +1,5 @@
 # go-zkfp
-Pure Go binding for integrating ZKTeco fingerprint reader via `libzkfp.dll` on Windows.
+Pure Go, low-level binding for ZKTeco fingerprint readers via the ZKFinger driver's `libzkfp.dll` on Windows.
 
 <p align="center"><img src="/img/ZK9500.jpg" width="300px"></p>
 
