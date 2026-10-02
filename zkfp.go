@@ -250,3 +250,234 @@ func (d *Device) SetParameter(code int, value []byte) error {
  
 	return check(int32(r1))
 }
+
+//-----------------------------------------------------------------------------------------------------------------------------------
+// DBInit creates an algorithm cache.
+func DBInit() (*DB, error) {
+	r1, _, _ := procDBInit.Call()
+
+	if r1 == 0 {
+		return nil, ErrOperationFailed
+	}
+
+	return &DB{
+		handle: windows.Handle(r1),
+	}, nil
+}
+
+// Free releases the algorithm cache.
+func (db *DB) Free() error {
+	if db == nil || db.handle == 0 {
+		return nil
+	}
+
+	r1, _, _ := procDBFree.Call(
+		uintptr(db.handle),
+	)
+
+	if err := check(int32(r1)); err != nil {
+		return err
+	}
+
+	db.handle = 0
+
+	return nil
+}
+
+// Merge combines three fingerprint templates into one registered template.
+func (db *DB) Merge(
+	template1 []byte,
+	template2 []byte,
+	template3 []byte,
+) ([]byte, error) {
+	if db == nil || db.handle == 0 {
+		return nil, ErrInvalidHandle
+	}
+
+	if len(template1) == 0 ||
+		len(template2) == 0 ||
+		len(template3) == 0 {
+		return nil, ErrInvalidParam
+	}
+
+	template := make([]byte, maxTemplateSize)
+	templateSize := uint32(len(template))
+
+	r1, _, _ := procDBMerge.Call(
+		uintptr(db.handle),
+		uintptr(unsafe.Pointer(&template1[0])),
+		uintptr(unsafe.Pointer(&template2[0])),
+		uintptr(unsafe.Pointer(&template3[0])),
+		uintptr(unsafe.Pointer(&template[0])),
+		uintptr(unsafe.Pointer(&templateSize)),
+	)
+
+	if err := check(int32(r1)); err != nil {
+		return nil, err
+	}
+
+	if templateSize > uint32(len(template)) {
+		return nil, ErrOperationFailed
+	}
+
+	return template[:templateSize], nil
+}
+
+// Add adds a fingerprint template to the algorithm cache.
+func (db *DB) Add(fid uint, template []byte) error {
+	if db == nil || db.handle == 0 {
+		return ErrInvalidHandle
+	}
+
+	if len(template) == 0 {
+		return ErrInvalidParam
+	}
+
+	r1, _, _ := procDBAdd.Call(
+		uintptr(db.handle),
+		uintptr(fid),
+		uintptr(unsafe.Pointer(&template[0])),
+		uintptr(len(template)),
+	)
+
+	return check(int32(r1))
+}
+
+// Del deletes a fingerprint template from the algorithm cache.
+func (db *DB) Del(fid uint) error {
+	if db == nil || db.handle == 0 {
+		return ErrInvalidHandle
+	}
+
+	r1, _, _ := procDBDel.Call(
+		uintptr(db.handle),
+		uintptr(fid),
+	)
+
+	return check(int32(r1))
+}
+
+// Clear removes all fingerprint templates from the algorithm cache.
+func (db *DB) Clear() error {
+	if db == nil || db.handle == 0 {
+		return ErrInvalidHandle
+	}
+
+	r1, _, _ := procDBClear.Call(
+		uintptr(db.handle),
+	)
+
+	return check(int32(r1))
+}
+
+// Count returns the number of fingerprint templates in the algorithm cache.
+func (db *DB) Count() (int, error) {
+	if db == nil || db.handle == 0 {
+		return 0, ErrInvalidHandle
+	}
+
+	var count uint32
+
+	r1, _, _ := procDBCount.Call(
+		uintptr(db.handle),
+		uintptr(unsafe.Pointer(&count)),
+	)
+
+	if err := check(int32(r1)); err != nil {
+		return 0, err
+	}
+
+	return int(count), nil
+}
+
+// Identify performs a 1:N fingerprint comparison.
+func (db *DB) Identify(template []byte) (uint, uint, error) {
+	if db == nil || db.handle == 0 {
+		return 0, 0, ErrInvalidHandle
+	}
+
+	if len(template) == 0 {
+		return 0, 0, ErrInvalidParam
+	}
+
+	var fid uint32
+	var score uint32
+
+	r1, _, _ := procDBIdentify.Call(
+		uintptr(db.handle),
+		uintptr(unsafe.Pointer(&template[0])),
+		uintptr(len(template)),
+		uintptr(unsafe.Pointer(&fid)),
+		uintptr(unsafe.Pointer(&score)),
+	)
+
+	if err := check(int32(r1)); err != nil {
+		return 0, 0, err
+	}
+
+	return uint(fid), uint(score), nil
+}
+
+// Match compares two fingerprint templates and returns the comparison score.
+func (db *DB) Match(template1, template2 []byte) (int, error) {
+	if db == nil || db.handle == 0 {
+		return 0, ErrInvalidHandle
+	}
+
+	if len(template1) == 0 || len(template2) == 0 {
+		return 0, ErrInvalidParam
+	}
+
+	r1, _, _ := procDBMatch.Call(
+		uintptr(db.handle),
+		uintptr(unsafe.Pointer(&template1[0])),
+		uintptr(len(template1)),
+		uintptr(unsafe.Pointer(&template2[0])),
+		uintptr(len(template2)),
+	)
+
+	result := int32(r1)
+
+	if result < 0 {
+		return 0, Error(result)
+	}
+
+	return int(result), nil
+}
+
+// ExtractFromImage extracts a fingerprint template from a BMP or JPG file.
+func (db *DB) ExtractFromImage(path string, dpi uint) ([]byte, error) {
+	if db == nil || db.handle == 0 {
+		return nil, ErrInvalidHandle
+	}
+
+	if path == "" {
+		return nil, ErrInvalidParam
+	}
+
+	filePath, err := windows.BytePtrFromString(path)
+	if err != nil {
+		return nil, err
+	}
+
+	template := make([]byte, maxTemplateSize)
+	templateSize := uint32(len(template))
+
+	r1, _, _ := procExtractFromImage.Call(
+		uintptr(db.handle),
+		uintptr(unsafe.Pointer(filePath)),
+		uintptr(dpi),
+		uintptr(unsafe.Pointer(&template[0])),
+		uintptr(unsafe.Pointer(&templateSize)),
+	)
+
+	if err := check(int32(r1)); err != nil {
+		return nil, err
+	}
+
+	if templateSize > uint32(len(template)) {
+		return nil, ErrOperationFailed
+	}
+
+	return template[:templateSize], nil
+}
