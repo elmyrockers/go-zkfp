@@ -30,4 +30,11 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
 examples/data/
+examples/enroll/tmp/
+examples/match/tmp/
+examples/identity/tmp/
+examples/image/tmp/
+examples/image/fingerprint.png
+examples/image/fingerprint.raw
