@@ -49,15 +49,17 @@ Pure Go, low-level binding for ZKTeco fingerprint readers via the ZKFinger drive
 
 
 
-## Error Handling
+### Error Handling
 
-The SDK returns errors as the exported `Error` type. Each error contains the original `libzkfp.dll` result code.
+Every function that talks to the SDK returns a `zkfp.Error`, an `int32` that holds the original `libzkfp.dll` result code.
 
 ```go
 type Error int32
 ```
 
-For example:
+#### Quick start
+
+Most calls only need a normal `err != nil` check:
 
 ```go
 if err := zkfp.Init(); err != nil {
@@ -65,7 +67,46 @@ if err := zkfp.Init(); err != nil {
 }
 ```
 
-The following error constants are provided:
+To react to a specific error, compare against its constant with `errors.Is`. This is the usual way to wait for a finger, because `ErrCaptureFailed` only means nothing is on the sensor yet:
+
+```go
+for {
+    err := dev.AcquireFingerprintImage(buf)
+    if err == nil {
+        break
+    }
+    if !errors.Is(err, zkfp.ErrCaptureFailed) {
+        return err
+    }
+    time.Sleep(100 * time.Millisecond)
+}
+```
+
+To read the raw SDK result code, use `errors.As`:
+
+```go
+var zkErr zkfp.Error
+
+if errors.As(err, &zkErr) {
+    fmt.Println("ZKFinger error code:", int32(zkErr))
+}
+```
+
+#### Error messages
+
+Each message contains a description and the SDK code:
+
+```text
+zkfp: failed to initialize the algorithm library (-1)
+```
+
+A non-zero result code that has no constant is still returned as a `zkfp.Error`:
+
+```text
+zkfp: unknown error (<code>)
+```
+
+#### Error constants
 
 | Error                 |  Code | Description                                         |
 | --------------------- | ----: | --------------------------------------------------- |
@@ -89,27 +130,3 @@ The following error constants are provided:
 | `ErrMergeFailed`      | `-22` | Failed to combine registered fingerprint templates. |
 | `ErrOpenFile`         | `-23` | Failed to open a file.                              |
 | `ErrImageProcess`     | `-24` | Fingerprint image processing failed.                |
-
-### Checking Specific Errors
-
-Because `Error` implements Go's `error` interface, errors can be checked using `errors.As`:
-
-```go
-var zkErr zkfp.Error
-
-if errors.As(err, &zkErr) {
-    fmt.Println("ZKFinger error code:", int32(zkErr))
-}
-```
-
-The error's string representation includes both the description and the original SDK error code:
-
-```text
-zkfp: failed to initialize the algorithm library (-1)
-```
-
-Unknown non-zero SDK result codes are also represented as `zkfp.Error` and reported as:
-
-```text
-zkfp: unknown error (<code>)
-```
