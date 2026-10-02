@@ -6,18 +6,48 @@ Pure Go, low-level binding for ZKTeco fingerprint readers via the ZKFinger drive
 
 ## API Reference
 
-| Go API                                                       | Parameters                                                                      | Return Value     | Description                                                                          |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------ |
-| `Init() error`                                               | None                                                                            | `error`          | Initializes the ZKFinger SDK.                                                        |
-| `Terminate() error`                                          | None                                                                            | `error`          | Terminates the ZKFinger SDK and releases SDK resources.                              |
-| `GetDeviceCount() (int, error)`                              | None                                                                            | `int, error`     | Returns the number of connected fingerprint devices.                                 |
-| `OpenDevice(index int) (*Device, error)`                     | `index int` — zero-based device index                                           | `*Device, error` | Opens a fingerprint device and returns a device handle.                              |
-| `(*Device).Close() error`                                    | None                                                                            | `error`          | Closes the fingerprint device.                                                       |
-| `(*Device).ImageSize() (int, error)`                         | None                                                                            | `int, error`     | Returns the required fingerprint image buffer size.                                  |
-| `(*Device).AcquireFingerprint(image []byte) ([]byte, error)` | `image []byte` — destination buffer for the fingerprint image                   | `[]byte, error`  | Captures a fingerprint image and extracts its fingerprint template.                  |
-| `(*Device).AcquireFingerprintImage(image []byte) error`      | `image []byte` — destination buffer for the fingerprint image                   | `error`          | Captures a fingerprint image into the supplied buffer without extracting a template. |
-| `(*Device).GetParameter(code int, size int) ([]byte, error)` | `code int` — SDK parameter code; `size int` — size of the value buffer in bytes | `[]byte, error`  | Reads a device parameter and returns its raw value.                                  |
-| `(*Device).SetParameter(code int, value []byte) error`       | `code int` — SDK parameter code; `value []byte` — raw parameter value           | `error`          | Writes a raw value to a device parameter.                                            |
+### SDK
+
+| Go API | Description |
+| --- | --- |
+| `Init() error` | Initializes the ZKFinger SDK and loads `libzkfp.dll`. Calling it again when the SDK is already initialized is treated as success. |
+| `Terminate() error` | Terminates the ZKFinger SDK and releases SDK resources. Close all devices and free all DBs first. |
+| `GetDeviceCount() (int, error)` | Returns the number of connected fingerprint devices. |
+
+### Device
+
+| Go API | Parameters | Description |
+| --- | --- | --- |
+| `OpenDevice(index int) (*Device, error)` | `index` — zero-based device index | Opens a fingerprint device and returns a device handle. |
+| `(*Device).Close() error` | None | Closes the device. Safe to call more than once. |
+| `(*Device).ImageSize() (int, error)` | None | Returns the required fingerprint image buffer size in bytes. |
+| `(*Device).AcquireFingerprint(image []byte) ([]byte, error)` | `image` — destination buffer, sized with `ImageSize` | Captures a fingerprint image into `image` and returns the extracted template. Returns `ErrCaptureFailed` while no finger is on the sensor. |
+| `(*Device).AcquireFingerprintImage(image []byte) error` | `image` — destination buffer, sized with `ImageSize` | Captures a fingerprint image into `image` without extracting a template. Returns `ErrCaptureFailed` while no finger is on the sensor. |
+| `(*Device).GetParameter(code int, size int) ([]byte, error)` | `code` — SDK parameter code; `size` — value buffer size in bytes | Reads a device parameter and returns its raw value, cut to the size reported by the SDK. |
+| `(*Device).SetParameter(code int, value []byte) error` | `code` — SDK parameter code; `value` — raw parameter value | Writes a raw value to a device parameter. Integer parameters are 4-byte little-endian. |
+
+### DB (algorithm cache)
+
+| Go API | Parameters | Description |
+| --- | --- | --- |
+| `DBInit() (*DB, error)` | None | Creates an algorithm cache that holds registered templates. |
+| `(*DB).Free() error` | None | Releases the algorithm cache. Safe to call more than once. |
+| `(*DB).Merge(t1, t2, t3 []byte) ([]byte, error)` | `t1`, `t2`, `t3` — three templates captured from the same finger | Merges three templates into one registration template. |
+| `(*DB).Add(fid uint, template []byte) error` | `fid` — fingerprint ID; `template` — registration template | Adds a template to the cache under the given ID. |
+| `(*DB).Del(fid uint) error` | `fid` — fingerprint ID | Deletes the template with the given ID from the cache. |
+| `(*DB).Clear() error` | None | Removes all templates from the cache. |
+| `(*DB).Count() (int, error)` | None | Returns the number of templates in the cache. |
+| `(*DB).Identify(template []byte) (fid uint, score uint, err error)` | `template` — template to look up | Performs a 1:N comparison against the cache and returns the best matching ID and its score. |
+| `(*DB).Match(t1, t2 []byte) (int, error)` | `t1`, `t2` — templates to compare | Performs a 1:1 comparison of two templates and returns the score. |
+| `(*DB).ExtractFromImage(path string, dpi uint) ([]byte, error)` | `path` — BMP or JPG file; `dpi` — image resolution (e.g. 500) | Extracts a template from an image file. The path must be ASCII, because the SDK expects an ANSI string. |
+
+### Notes
+
+- Templates are at most 2048 bytes (`maxTemplateSize`).
+- Typical order of use: `Init` → `OpenDevice` → `DBInit` → ... → `DB.Free` → `Device.Close` → `Terminate`.
+- All methods return `ErrInvalidHandle` on a closed or nil `Device`/`DB`, and `ErrInvalidParam` for empty buffers or paths.
+
+
 
 ## Error Handling
 
