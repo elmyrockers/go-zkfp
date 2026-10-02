@@ -5,11 +5,14 @@ on:
 
 jobs:
   test:
-    runs-on: self-hosted
+    runs-on: [self-hosted, Windows, X64]
 
     steps:
-      - name: Environment
+      - uses: actions/checkout@v4
+
+      - name: Show workspace
         run: |
-          echo "Testing runner"
-          pwd
-          whoami
+          echo %GITHUB_WORKSPACE%
+          cd
+          dir
+        shell: cmd
