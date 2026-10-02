@@ -8,15 +8,8 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Show workspace
-        shell: pwsh
+      - name: Environment
         run: |
-          Write-Host "Workspace: $env:GITHUB_WORKSPACE"
-          Get-Location
-
-      - name: List files
-        shell: pwsh
-        run: dir
+          echo "Testing runner"
+          pwd
+          whoami
