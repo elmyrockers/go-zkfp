@@ -1,4 +1,8 @@
 # go-zkfp
+[![Go Reference](https://pkg.go.dev/badge/github.com/elmyrockers/go-zkfp.svg)](https://pkg.go.dev/github.com/elmyrockers/go-zkfp)
+[![Go Version](https://img.shields.io/badge/go1.27+-00ADD8?logo=go&logoColor=white)](https://golang.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Pure Go, low-level binding for ZKTeco fingerprint readers via the ZKFinger driver's `libzkfp.dll` on Windows.
 
 <p align="center"><img src="/img/ZK9500.jpg" width="300px"></p>
