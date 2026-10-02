@@ -47,7 +47,38 @@ Pure Go, low-level binding for ZKTeco fingerprint readers via the ZKFinger drive
 - Typical order of use: `Init` → `OpenDevice` → `DBInit` → ... → `DB.Free` → `Device.Close` → `Terminate`.
 - All methods return `ErrInvalidHandle` on a closed or nil `Device`/`DB`, and `ErrInvalidParam` for empty buffers or paths.
 
+### Parameter Codes
 
+`(*Device).GetParameter` and `(*Device).SetParameter` take an SDK parameter code. Integer parameters are 4-byte little-endian values.
+
+| Constant              | Code  | Access     | Description                                  |
+| --------------------- | ----: | ---------- | -------------------------------------------- |
+| `ParamImageWidth`     |   `1` | Read       | Fingerprint image width in pixels.           |
+| `ParamImageHeight`    |   `2` | Read       | Fingerprint image height in pixels.          |
+| `ParamGreenLED`       | `102` | Write      | Green LED on the reader (`1` = on, `0` = off). |
+| `ParamImageSize`      | `106` | Read       | Fingerprint image buffer size in bytes.      |
+
+#### Reading a parameter
+
+```go
+value, err := dev.GetParameter(zkfp.ParamImageWidth, 4)
+if err != nil {
+    return err
+}
+
+width := int(binary.LittleEndian.Uint32(value))
+```
+
+#### Writing a parameter
+
+```go
+// Turn the green LED on.
+if err := dev.SetParameter(zkfp.ParamGreenLED, []byte{1, 0, 0, 0}); err != nil {
+    return err
+}
+```
+
+`ImageSize()` already wraps `ParamImageSize`, so you rarely need to read it yourself.
 
 ### Error Handling
 
