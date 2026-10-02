@@ -26,10 +26,27 @@ var (
 	procAcquireFingerprintImg = dll.NewProc("ZKFPM_AcquireFingerprintImage")
 	procGetParameters         = dll.NewProc("ZKFPM_GetParameters")
 	procSetParameters         = dll.NewProc("ZKFPM_SetParameters")
+
+
+	procDBInit           = dll.NewProc("ZKFPM_DBInit")
+	procDBFree           = dll.NewProc("ZKFPM_DBFree")
+	procDBMerge          = dll.NewProc("ZKFPM_DBMerge")
+	procDBAdd            = dll.NewProc("ZKFPM_DBAdd")
+	procDBDel            = dll.NewProc("ZKFPM_DBDel")
+	procDBClear          = dll.NewProc("ZKFPM_DBClear")
+	procDBCount          = dll.NewProc("ZKFPM_DBCount")
+	procDBIdentify       = dll.NewProc("ZKFPM_DBIdentify")
+	procDBMatch          = dll.NewProc("ZKFPM_DBMatch")
+	procExtractFromImage = dll.NewProc("ZKFPM_ExtractFromImage")
 )
 
 // Device represents an opened fingerprint device.
 type Device struct {
+	handle windows.Handle
+}
+
+// DB represents an initialized ZKFinger algorithm database/cache.
+type DB struct {
 	handle windows.Handle
 }
 
