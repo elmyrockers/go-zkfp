@@ -6,7 +6,7 @@ Pure Go, low-level binding for ZKTeco fingerprint readers via the ZKFinger drive
 
 ## API Reference
 
-### SDK
+#### SDK
 
 | Go API | Description |
 | --- | --- |
@@ -14,7 +14,7 @@ Pure Go, low-level binding for ZKTeco fingerprint readers via the ZKFinger drive
 | `Terminate() error` | Terminates the ZKFinger SDK and releases SDK resources. Close all devices and free all DBs first. |
 | `GetDeviceCount() (int, error)` | Returns the number of connected fingerprint devices. |
 
-### Device
+#### Device
 
 | Go API | Parameters | Description |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ Pure Go, low-level binding for ZKTeco fingerprint readers via the ZKFinger drive
 | `(*Device).GetParameter(code int, size int) ([]byte, error)` | `code` — SDK parameter code; `size` — value buffer size in bytes | Reads a device parameter and returns its raw value, cut to the size reported by the SDK. |
 | `(*Device).SetParameter(code int, value []byte) error` | `code` — SDK parameter code; `value` — raw parameter value | Writes a raw value to a device parameter. Integer parameters are 4-byte little-endian. |
 
-### DB (algorithm cache)
+#### DB (algorithm cache)
 
 | Go API | Parameters | Description |
 | --- | --- | --- |
@@ -41,7 +41,7 @@ Pure Go, low-level binding for ZKTeco fingerprint readers via the ZKFinger drive
 | `(*DB).Match(t1, t2 []byte) (int, error)` | `t1`, `t2` — templates to compare | Performs a 1:1 comparison of two templates and returns the score. |
 | `(*DB).ExtractFromImage(path string, dpi uint) ([]byte, error)` | `path` — BMP or JPG file; `dpi` — image resolution (e.g. 500) | Extracts a template from an image file. The path must be ASCII, because the SDK expects an ANSI string. |
 
-### Notes
+#### Notes
 
 - Templates are at most 2048 bytes (`maxTemplateSize`).
 - Typical order of use: `Init` → `OpenDevice` → `DBInit` → ... → `DB.Free` → `Device.Close` → `Terminate`.
