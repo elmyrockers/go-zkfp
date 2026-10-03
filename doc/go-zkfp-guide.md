@@ -532,28 +532,32 @@ func main() {
 
 ### Appendix 1: List of Common Parameter Codes
 
-| Parameter Code | Property | Data Type | Description |
-|---:|---|---|---|
-| 1 | Read-only | Int | Image width |
-| 2 | Read-only | Int | Image height |
-| 3 | Read-write (LIVEID20R only) | Int | Image DPI (750/1000 recommended for children) |
-| 106 | Read-only | Int | Image data size (`paramImageSize`) |
-| 1015 | Read-only | 4-byte array | VID & PID bytes (former two indicate VID, latter two PID) |
-| 2002 | Read-write (LIVEID20R only) | Int | Anti-fake function (1: enable; 0: disable) |
-| 2004 | Read-only | Int | True if lower five bits are all 1's (`value&31==31`) |
-| 1101 | Read-only | String | Vendor information |
-| 1102 | Read-only | String | Product name |
-| 1103 | Read-only | String | Device SN |
-| 101 | Write-only | Int | 1 indicates white light blinks; 0 indicates disabled |
-| 102 | Write-only | Int | 1 indicates green light blinks; 0 indicates disabled |
-| 103 | Write-only | Int | 1 indicates red light blinks; 0 indicates disabled |
-| 104 | Write-only | Int | 1 indicates buzzing started; 0 indicates disabled |
-| 10001 | Write-only (ISO/ANSI only) | Int | 0: ANSI378; 1: ISO 19794-2 |
+`(*Device).GetParameter` and `(*Device).SetParameter` take an SDK parameter code. Integer parameters are 4-byte little-endian values.
+
+| Constant              |  Code | Access     | Type         | Description                                                                 |
+| --------------------- | ----: | ---------- | ------------ | --------------------------------------------------------------------------- |
+| `ParamImageWidth`     |   `1` | Read       | Int          | Fingerprint image width in pixels.                                          |
+| `ParamImageHeight`    |   `2` | Read       | Int          | Fingerprint image height in pixels.                                         |
+| `ParamImageDPI`       |   `3` | Read/Write | Int          | Image DPI (`LIVEID20R` only; 750/1000 recommended for children).            |
+| `ParamWhiteLED`       | `101` | Write      | Int          | White LED on the reader (`1` = blink, `0` = off).                           |
+| `ParamGreenLED`       | `102` | Write      | Int          | Green LED on the reader (`1` = blink, `0` = off).                           |
+| `ParamRedLED`         | `103` | Write      | Int          | Red LED on the reader (`1` = blink, `0` = off).                             |
+| `ParamBuzzer`         | `104` | Write      | Int          | Buzzer (`1` = start buzzing, `0` = off).                                    |
+| `ParamImageSize`      | `106` | Read       | Int          | Fingerprint image buffer size in bytes.                                     |
+| `ParamVIDPID`         | `1015` | Read      | 4-byte array | USB VID and PID (first two bytes are the VID, last two bytes the PID).      |
+| `ParamVendorInfo`     | `1101` | Read      | String       | Vendor information.                                                         |
+| `ParamProductName`    | `1102` | Read      | String       | Product name.                                                               |
+| `ParamSerialNumber`   | `1103` | Read      | String       | Device serial number (SN).                                                  |
+| `ParamAntiFake`       | `2002` | Read/Write | Int         | Anti-fake function (`LIVEID20R` only; `1` = enable, `0` = disable).         |
+| `ParamFakeStatus`     | `2004` | Read      | Int          | True if the lower five bits are all 1's (`value&31 == 31`).                 |
+| `ParamTemplateFormat` | `10001` | Write    | Int          | Template format (ISO/ANSI readers only; `0` = ANSI378, `1` = ISO 19794-2).  |
 
 ### Appendix 2: Descriptions of Returned Error Values
 
 | Code | Go Error Value | Description |
 |---:|---|---|
+| 1 | `nil` | SDK already initialized (treated as success by `Init`) |
+| 0 | `nil` | Operation succeeded |
 | -1 | `ErrInitLib` | Failed to initialize the algorithm library |
 | -2 | `ErrInitCapture` | Failed to initialize the capture library |
 | -3 | `ErrNoDevice` | No device connected |
