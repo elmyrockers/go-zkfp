@@ -1,6 +1,8 @@
 package zkfp
 
 import (
+	"fmt"
+	"errors"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
