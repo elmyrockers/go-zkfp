@@ -8,6 +8,31 @@ Pure Go, low-level binding for ZKTeco fingerprint readers via the ZKFinger drive
 
 <p align="center"><img src="/img/ZK9500.jpg" width="300px"></p>
 
+## Installation
+
+### Requirements
+
+- Windows XP or later
+- Go 1.27.1 or later
+- A Go build architecture (`GOARCH=386` or `amd64`) that matches the architecture of `libzkfp.dll`
+
+cgo and a C compiler are **not** required.
+
+### Steps
+
+1. Install the ZKFinger driver, which you can download from [zkteco.com](https://www.zkteco.com).
+
+2. Add the package to your module:
+
+```bash
+   go get github.com/elmyrockers/go-zkfp
+```
+
+3. Import it in your code:
+
+```go
+   import "github.com/elmyrockers/go-zkfp"
+```
 
 ## API Reference
 
