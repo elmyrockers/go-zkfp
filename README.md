@@ -98,7 +98,7 @@ func main() {
 
 | Go API | Description |
 | --- | --- |
-| `Init() error` | Initializes the ZKFinger SDK and loads `libzkfp.dll`. Calling it again when the SDK is already initialized is treated as success. |
+| `Init() error` | Initializes the ZKFinger SDK and loads `libzkfp.dll`. |
 | `Terminate() error` | Terminates the ZKFinger SDK and releases SDK resources. Close all devices and free all DBs first. |
 | `GetDeviceCount() (int, error)` | Returns the number of connected fingerprint devices. |
 
