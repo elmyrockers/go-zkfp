@@ -56,14 +56,14 @@ func main() {
     defer zkfp.Terminate() // release SDK resources on exit
 
     // Open the first connected fingerprint reader (index 0)
-    dev, err := zkfp.OpenDevice(0)
+    device, err := zkfp.OpenDevice(0)
     if err != nil {
         log.Fatal(err)
     }
-    defer dev.Close() // close the reader on exit
+    defer device.Close() // close the reader on exit
 
     // Ask the reader how big the image buffer needs to be
-    size, err := dev.ImageSize()
+    size, err := device.ImageSize()
     if err != nil {
         log.Fatal(err)
     }
@@ -73,7 +73,7 @@ func main() {
 
     for {
         // Try to capture a fingerprint image and extract its template
-        template, err := dev.AcquireFingerprint(img)
+        template, err := device.AcquireFingerprint(img)
 
         // No finger captured yet: wait a moment and try again
         if errors.Is(err, zkfp.ErrCaptureFailed) {
