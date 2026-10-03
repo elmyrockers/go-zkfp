@@ -27,6 +27,8 @@ const (
 	ErrMergeFailed      Error = -22 // failed to combine registered templates
 	ErrOpenFile         Error = -23 // opening the file failed
 	ErrImageProcess     Error = -24 // image processing failed
+
+	ErrLoadLibrary      Error = -100 // failed to load libzkfp.dll
 )
 
 var errText = map[Error]string{
@@ -51,6 +53,8 @@ var errText = map[Error]string{
 	ErrMergeFailed:      "failed to combine registered fingerprint templates",
 	ErrOpenFile:         "opening the file failed",
 	ErrImageProcess:     "image processing failed",
+
+	ErrLoadLibrary:      "failed to load libzkfp.dll",
 }
 
 func (e Error) Error() string {
