@@ -331,7 +331,7 @@ const (
 \end{itemize}
 \textbf{[Return Value]} 
 \begin{itemize}
-    \item \texttt{fid, score, nil}: Matched fingerprint ID and comparison score uint values
+    \item \texttt{fid, score, nil}: Matched fingerprint ID and comparison score (both \texttt{uint})
     \item \texttt{0, 0, error}: Identification failed or no match found (See Appendix 2)
 \end{itemize}
 
@@ -432,27 +432,31 @@ func main() {
 \section{Appendixes}
 
 \subsection{Appendix 1: List of Common Parameter Codes}
+\texttt{(*Device).GetParameter} and \texttt{(*Device).SetParameter} take an SDK parameter code. Integer parameters are 4-byte little-endian values.
+
 \begin{table}[htbp]
 \centering
-\begin{tabularx}{\textwidth}{l l l X}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{l r l l X}
 \toprule
-\textbf{Parameter Code} & \textbf{Property} & \textbf{Data Type} & \textbf{Description} \\
+\textbf{Constant} & \textbf{Code} & \textbf{Access} & \textbf{Type} & \textbf{Description} \\
 \midrule
-1 & Read-only & Int & Image width \\
-2 & Read-only & Int & Image height \\
-3 & Read-write (LIVEID20R only) & Int & Image DPI (750/1000 recommended for children) \\
-106 & Read-only & Int & Image data size (\texttt{paramImageSize}) \\
-1015 & Read-only & 4-byte array & VID \& PID bytes (former two indicate VID, latter two PID) \\
-2002 & Read-write (LIVEID20R only) & Int & Anti-fake function (1: enable; 0: disable) \\
-2004 & Read-only & Int & True if lower five bits are all 1's (\texttt{value\&31==31}) \\
-1101 & Read-only & String & Vendor information \\
-1102 & Read-only & String & Product name \\
-1103 & Read-only & String & Device SN \\
-101 & Write-only & Int & 1 indicates white light blinks; 0 indicates disabled \\
-102 & Write-only & Int & 1 indicates green light blinks; 0 indicates disabled \\
-103 & Write-only & Int & 1 indicates red light blinks; 0 indicates disabled \\
-104 & Write-only & Int & 1 indicates buzzing started; 0 indicates disabled \\
-10001 & Write-only (ISO/ANSI only) & Int & 0: ANSI378; 1: ISO 19794-2 \\
+\texttt{ParamImageWidth} & \texttt{1} & Read & Int & Fingerprint image width in pixels. \\
+\texttt{ParamImageHeight} & \texttt{2} & Read & Int & Fingerprint image height in pixels. \\
+\texttt{ParamImageDPI} & \texttt{3} & Read/Write & Int & Image DPI (\texttt{LIVEID20R} only; 750/1000 recommended for children). \\
+\texttt{ParamWhiteLED} & \texttt{101} & Write & Int & White LED on the reader (\texttt{1} = blink, \texttt{0} = off). \\
+\texttt{ParamGreenLED} & \texttt{102} & Write & Int & Green LED on the reader (\texttt{1} = blink, \texttt{0} = off). \\
+\texttt{ParamRedLED} & \texttt{103} & Write & Int & Red LED on the reader (\texttt{1} = blink, \texttt{0} = off). \\
+\texttt{ParamBuzzer} & \texttt{104} & Write & Int & Buzzer (\texttt{1} = start buzzing, \texttt{0} = off). \\
+\texttt{ParamImageSize} & \texttt{106} & Read & Int & Fingerprint image buffer size in bytes. \\
+\texttt{ParamVIDPID} & \texttt{1015} & Read & 4-byte array & USB VID and PID (first two bytes are the VID, last two bytes the PID). \\
+\texttt{ParamVendorInfo} & \texttt{1101} & Read & String & Vendor information. \\
+\texttt{ParamProductName} & \texttt{1102} & Read & String & Product name. \\
+\texttt{ParamSerialNumber} & \texttt{1103} & Read & String & Device serial number (SN). \\
+\texttt{ParamAntiFake} & \texttt{2002} & Read/Write & Int & Anti-fake function (\texttt{LIVEID20R} only; \texttt{1} = enable, \texttt{0} = disable). \\
+\texttt{ParamFakeStatus} & \texttt{2004} & Read & Int & True if the lower five bits are all 1's (\texttt{value\&31 == 31}). \\
+\texttt{ParamTemplateFormat} & \texttt{10001} & Write & Int & Template format (ISO/ANSI readers only; \texttt{0} = ANSI378, \texttt{1} = ISO 19794-2). \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -464,6 +468,8 @@ func main() {
 \toprule
 \textbf{Code} & \textbf{Go Error Value} & \textbf{Description} \\
 \midrule
+1 & \texttt{nil} & SDK already initialized (treated as success by \texttt{Init}) \\
+0 & \texttt{nil} & Operation succeeded \\
 -1 & \texttt{ErrInitLib} & Failed to initialize the algorithm library \\
 -2 & \texttt{ErrInitCapture} & Failed to initialize the capture library \\
 -3 & \texttt{ErrNoDevice} & No device connected \\
