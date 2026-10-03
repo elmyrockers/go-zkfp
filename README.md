@@ -240,7 +240,7 @@ zkfp: unknown error (<code>)
 
 | Error                 |  Code | Description                                                         |
 | --------------------- | ----: | ------------------------------------------------------------------- |
-| `nil`                 |   `1` | The SDK is already initialized (`Init` treats this as success).     |
+| `ErrAlreadyInit`      |   `1` | The SDK is already initialized.                                     |
 | `nil`                 |   `0` | The operation succeeded.                                            |
 | `ErrInitLib`          |  `-1` | Failed to initialize the algorithm library.                         |
 | `ErrInitCapture`      |  `-2` | Failed to initialize the capture library.                           |
