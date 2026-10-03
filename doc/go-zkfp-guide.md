@@ -1,64 +1,94 @@
 # go-zkfp Development Guide
 
-Go binding for the ZKFinger Reader SDK (`libzkfp.dll`), based on the ZKTeco ZKFinger Reader SDK C API Version 2.0.
+**Go Binding for ZKFinger Reader SDK (`libzkfp.dll`)**
 
-Repository: <https://github.com/elmyrockers/go-zkfp>
+Repository: [github.com/elmyrockers/go-zkfp](https://github.com/elmyrockers/go-zkfp)
+Based on ZKTeco ZKFinger Reader SDK C API Version 2.0
 
-## Contents
+## Table of Contents
 
 1. [Overview](#1-overview)
 2. [Disclaimer](#2-disclaimer)
 3. [System Requirements](#3-system-requirements)
 4. [Installation and Deployment](#4-installation-and-deployment)
 5. [Description of Go Interfaces](#5-description-of-go-interfaces)
-6. [Usage Example](#6-usage-example)
-7. [Appendixes](#7-appendixes)
+   - [5.1 Design Conventions](#51-design-conventions)
+   - [5.2 Function Mapping](#52-function-mapping)
+   - [5.3 Type Definitions and Constants](#53-type-definitions-and-constants)
+6. [Global Library Functions](#6-global-library-functions)
+   - [Init](#init)
+   - [Terminate](#terminate)
+   - [GetDeviceCount](#getdevicecount)
+   - [OpenDevice](#opendevice)
+   - [DBInit](#dbinit)
+7. [Device Methods](#7-device-methods)
+   - [Device.Close](#deviceclose)
+   - [Device.ImageSize](#deviceimagesize)
+   - [Device.AcquireFingerprint](#deviceacquirefingerprint)
+   - [Device.AcquireFingerprintImage](#deviceacquirefingerprintimage)
+   - [Device.GetParameter](#devicegetparameter)
+   - [Device.SetParameter](#devicesetparameter)
+8. [Database/Algorithm Methods](#8-databasealgorithm-methods)
+   - [DB.Free](#dbfree)
+   - [DB.Merge](#dbmerge)
+   - [DB.Add](#dbadd)
+   - [DB.Del](#dbdel)
+   - [DB.Clear](#dbclear)
+   - [DB.Count](#dbcount)
+   - [DB.Identify](#dbidentify)
+   - [DB.Match](#dbmatch)
+   - [DB.ExtractFromImage](#dbextractfromimage)
+9. [Usage Example](#9-usage-example)
+10. [Appendixes](#10-appendixes)
+    - [Appendix 1: List of Common Parameter Codes](#appendix-1-list-of-common-parameter-codes)
+    - [Appendix 2: Descriptions of Returned Error Values](#appendix-2-descriptions-of-returned-error-values)
 
 ---
 
 ## 1. Overview
 
-`go-zkfp` is a Go binding for `libzkfp.dll`, the ZKFinger Reader SDK from ZKTeco. It lets Go programs enumerate ZKTeco fingerprint readers, capture images and templates, and register, identify and match fingerprints. Each Go function maps one-to-one to a C function of the ZKFinger Reader SDK (C API Version 2.0).
+`go-zkfp` ([github.com/elmyrockers/go-zkfp](https://github.com/elmyrockers/go-zkfp)) is a Go binding for `libzkfp.dll`, the ZKFinger Reader SDK from ZKTeco. It allows Go programs to enumerate ZKTeco fingerprint readers, capture images and templates, and register, identify, and match fingerprints.
+
+This document describes the Go API, mapping one-to-one to the C functions of the ZKFinger Reader SDK (C API Version 2.0).
 
 ## 2. Disclaimer
 
-`go-zkfp` is an unofficial binding and does not include the ZKTeco SDK. `libzkfp.dll` must be obtained by installing the ZKFinger SDK from ZKTeco, and its use is subject to the ZKTeco license: you shall not use, copy, modify, lease, or transfer any part of the SDK beyond the clauses of the original SDK document.
+`go-zkfp` is an independent open-source wrapper and does not include the ZKTeco SDK binaries. `libzkfp.dll` must be obtained by installing the official ZKFinger SDK from ZKTeco. Use of the SDK is subject to ZKTeco's licensing terms.
 
 ## 3. System Requirements
 
 1. Operating system: Windows XP or a later version
-2. Go 1.18 or later
-3. ZKFinger SDK 5.x / ZKOnline SDK 5.x installed (provides `libzkfp.dll` and the reader driver)
+2. Go 1.27.1 or later
+3. ZKFinger SDK 5.x / ZKOnline SDK 5.x installed (providing `libzkfp.dll` and reader drivers)
 4. The architecture of the Go program (`GOARCH=386` or `amd64`) must match the architecture of `libzkfp.dll`
-5. cgo and a C compiler are **not** required: the library is loaded at runtime with `golang.org/x/sys/windows` (`windows.NewLazyDLL`), whose calls use the `stdcall` convention that the SDK requires
+5. cgo and a C compiler are **not** required: the library is loaded at runtime via `golang.org/x/sys/windows` (`windows.NewLazyDLL`) utilizing standard calling conventions required by the SDK.
 
 ## 4. Installation and Deployment
 
 1. Install ZKFinger SDK 5.x / ZKOnline SDK 5.x.
 2. Add the package to your module:
 
-   ```
+   ```bash
    go get github.com/elmyrockers/go-zkfp
    ```
 
-3. Make `libzkfp.dll` loadable: place it next to your executable, or in a directory on `PATH`. To load it from a custom location call `zkfp.SetDLLPath` **before** any other function.
-4. Import the package:
+3. Make `libzkfp.dll` loadable by placing it next to your executable or in a directory on your system `PATH`.
+4. Import the package in your code:
 
    ```go
-   import zkfp "github.com/elmyrockers/go-zkfp"
+   import "github.com/elmyrockers/go-zkfp"
    ```
 
 ## 5. Description of Go Interfaces
 
 ### 5.1 Design Conventions
 
-- **Errors.** Instead of returning an integer code, functions return a Go `error`. A non-zero SDK result is returned as a value of type `zkfp.Error` (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values)), so it can be compared with `errors.Is` or `errors.As`.
-- **Handles.** The C `HANDLE` types are wrapped in two Go types: `*Device` (reader instance) and `*DB` (algorithm cache). Functions that take a handle in C are methods in Go.
-- **Buffers.** The C pattern of "pointer + size" pairs becomes a Go `[]byte`. Output buffers are allocated by the binding and returned already trimmed to the actual returned size.
-- **Cleanup.** `Close` methods are idempotent: calling them more than once is safe and returns `nil`.
-- **Concurrency.** The SDK is not documented as thread-safe. A `*Device` or `*DB` must not be used from several goroutines at the same time unless the caller serializes access. The binding does not add locks of its own.
+- **Errors.** Functions return a standard Go `error` instead of raw integer return codes. Non-zero SDK results return values of type `zkfp.Error` (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values)), allowing direct comparison with `errors.Is` or `errors.As`.
+- **Handles.** C `HANDLE` types are encapsulated into clean Go types: `*Device` (for reader instances) and `*DB` (for algorithm caches/databases).
+- **Buffers.** C pointer-and-size parameter pairs are represented as native Go slices (`[]byte`). Output buffers are automatically allocated and trimmed to the actual data size returned by the SDK.
+- **Cleanup.** `Close()` and `Free()` methods are implemented safely and idempotently.
 
-#### Function Mapping
+### 5.2 Function Mapping
 
 | C function | Go function / method |
 |---|---|
@@ -71,351 +101,459 @@ Repository: <https://github.com/elmyrockers/go-zkfp>
 | `ZKFPM_GetParameters` | `(*Device).GetParameter` |
 | `ZKFPM_AcquireFingerprint` | `(*Device).AcquireFingerprint` |
 | `ZKFPM_AcquireFingerprintImage` | `(*Device).AcquireFingerprintImage` |
-| `ZKFPM_DBInit` | `zkfp.NewDB` |
-| `ZKFPM_DBFree` | `(*DB).Close` |
+| `ZKFPM_DBInit` | `zkfp.DBInit` |
+| `ZKFPM_DBFree` | `(*DB).Free` |
 | `ZKFPM_DBMerge` | `(*DB).Merge` |
 | `ZKFPM_DBAdd` | `(*DB).Add` |
-| `ZKFPM_DBDel` | `(*DB).Delete` |
+| `ZKFPM_DBDel` | `(*DB).Del` |
 | `ZKFPM_DBClear` | `(*DB).Clear` |
 | `ZKFPM_DBCount` | `(*DB).Count` |
 | `ZKFPM_DBIdentify` | `(*DB).Identify` |
 | `ZKFPM_DBMatch` | `(*DB).Match` |
 | `ZKFPM_ExtractFromImage` | `(*DB).ExtractFromImage` |
 
-### 5.2 Type Definition
+### 5.3 Type Definitions and Constants
 
 ```go
 package zkfp
 
-// Device is an opened fingerprint reader (wraps the C device HANDLE).
 type Device struct { /* unexported */ }
-
-// DB is an algorithm cache (wraps the C hDBCache HANDLE).
 type DB struct { /* unexported */ }
-
-// Error is a non-zero result code returned by libzkfp.dll.
 type Error int32
 
-func (e Error) Error() string // e.g. "zkfp: no device connected (-3)"
-
-// Format selects the template format (parameter code 10001).
-type Format int32
-
 const (
-    FormatANSI378 Format = 0 // ANSI INCITS 378
-    FormatISO     Format = 1 // ISO/IEC 19794-2
+    maxTemplateSize = 2048
+    paramImageSize  = 106
 )
 ```
 
-#### Constants
+## 6. Global Library Functions
 
-1. Maximum length of a template
-   **[Definition]** `const MaxTemplateSize = 2048`
-2. Fingerprint 1:1 threshold parameter code
-   **[Definition]** `const ParamThreshold = 1`
-3. Fingerprint 1:N threshold parameter code
-   **[Definition]** `const ParamMThreshold = 2`
-
-The device parameter codes of [Appendix 1](#appendix-1-list-of-common-parameter-codes) are exported as `Param...` constants, and the error codes of [Appendix 2](#appendix-2-descriptions-of-returned-error-values) as `Err...` values.
-
-### 5.3 Interface Description
-
-#### SetDLLPath
-
-**[Function]** `func SetDLLPath(path string)`
-**[Purpose]** Chooses the location of `libzkfp.dll`. It has no C counterpart.
-**[Parameter Description]** `path` - Full path of `libzkfp.dll`
-**[Note]** It must be called before any other function of the package. If it is not called, the default DLL search order of Windows is used.
-
-#### Init
-
-**[Function]** `func Init() error`
-**[Purpose]** Initializes resources. It must be called once before any other SDK function.
-**[Parameter Description]** None
-**[Return Value]**
-
-- `nil`: Succeeded. The C result `1` (already initialized) is also reported as `nil`.
-- `error`: Failed (see Appendix 2)
-
-#### Terminate
-
-**[Function]** `func Terminate() error`
-**[Purpose]** Releases resources. Close all `*Device` and `*DB` values before calling it.
-**[Parameter Description]** None
-**[Return Value]**
-
-- `nil`: Succeeded
-- `error`: Failed (see Appendix 2)
-
-#### GetDeviceCount
-
-**[Function]** `func GetDeviceCount() (int, error)`
-**[Purpose]** Acquires the number of devices.
-**[Parameter Description]** None
-**[Return Value]**
-
-- `n, nil`: Device count (`n >= 0`)
-- `0, error`: The function fails to be called (see Appendix 2)
-
-#### OpenDevice
-
-**[Function]** `func OpenDevice(index int) (*Device, error)`
-**[Purpose]** Starts a device.
-**[Parameter Description]** `index` - Device index (starting from 0)
-**[Return Value]**
-
-- `*Device, nil`: Device operation instance
-- `nil, error`: Failed. The C function reports failure with a null handle, so the binding returns `ErrOpenDevice` (`-6`).
-
-#### Device.Close
-
-**[Function]** `func (d *Device) Close() error`
-**[Purpose]** Shuts down a device. Calling it again on a closed device returns `nil`.
-**[Parameter Description]** None
-**[Return Value]**
-
-- `nil`: Succeeded
-- `error`: Failed (see Appendix 2)
-
-#### Device.SetParameter
-
-**[Function]** `func (d *Device) SetParameter(code int, value []byte) error`
-**[Purpose]** Sets fingerprint reader parameters.
-**[Parameter Description]**
-
-- `code`: Parameter code (for details, see Appendix 1)
-- `value`: Parameter value. The length of the slice is passed as `cbParamValue`.
-
-**[Return Value]**
-
-- `nil`: Succeeded
-- `error`: Failed (see Appendix 2)
-
-**[Helpers]** `SetParameterInt(code, v int32) error` encodes a 4-byte integer. `SetFormat(f Format) error`, `SetLED(color LED, on bool) error` and `Buzz(on bool) error` are shortcuts for the corresponding codes.
-
-#### Device.GetParameter
-
-**[Function]** `func (d *Device) GetParameter(code int, size int) ([]byte, error)`
-**[Purpose]** Acquires fingerprint reader parameters.
-**[Parameter Description]**
-
-- `code`: Parameter code
-- `size`: Size of the buffer to allocate for the value, based on the parameter code (4 for an `Int`, 4 for the VID/PID array, a larger buffer such as 64 for strings)
-
-**[Return Value]**
-
-- `value, nil`: The returned parameter value, already cut to the size reported by the SDK (`cbParamValue [out]`)
-- `nil, error`: Failed (see Appendix 2)
-
-**[Helpers]** `GetParameterInt(code int) (int32, error)`, `ImageWidth() (int, error)`, `ImageHeight() (int, error)`, `ImageSize() (int, error)`, `VIDPID() (vid, pid uint16, err error)`, `Vendor() (string, error)`, `ProductName() (string, error)` and `SerialNumber() (string, error)`.
-
-#### Device.AcquireFingerprint
-
-**[Function]** `func (d *Device) AcquireFingerprint(image []byte) ([]byte, error)`
-**[Purpose]** Captures a template (and the fingerprint image).
-**[Parameter Description]**
-
-- `image [out]`: Buffer that receives the fingerprint image. Its length is passed as `cbFPImage`, and must be at least `width*height` bytes (use `ImageSize`).
-
-**[Return Value]**
-
-- `template, nil`: The captured template, trimmed to the actual size (the binding pre-allocates `MaxTemplateSize` = 2048 bytes)
-- `nil, error`: Failed (see Appendix 2)
-
-**[Note]** The call returns `ErrCaptureFailed` (`-8`) when no finger is on the sensor. Applications normally poll in a loop and ignore this error until a finger is detected.
-
-#### Device.AcquireFingerprintImage
-
-**[Function]** `func (d *Device) AcquireFingerprintImage(image []byte) error`
-**[Purpose]** Captures an image only.
-**[Parameter Description]** `image [out]` - Buffer that receives the fingerprint image (length passed as `cbFPImage`)
-**[Return Value]**
-
-- `nil`: Succeeded
-- `error`: Failed (see Appendix 2)
-
-#### NewDB
-
-**[Function]** `func NewDB() (*DB, error)`
-**[Purpose]** Creates an algorithm cache.
-**[Parameter Description]** None
-**[Return Value]**
-
-- `*DB, nil`: Cache instance
-- `nil, error`: Failed (the C function returned a null handle)
-
-#### DB.Close
-
-**[Function]** `func (db *DB) Close() error`
-**[Purpose]** Releases an algorithm cache. It is idempotent.
-**[Parameter Description]** None
-**[Return Value]**
-
-- `nil`: Succeeded
-- `error`: Failed (see Appendix 2)
-
-#### DB.Merge
-
-**[Function]** `func (db *DB) Merge(t1, t2, t3 []byte) ([]byte, error)`
-**[Purpose]** Combines three pre-registered fingerprint templates into one registered template.
-**[Parameter Description]** `t1, t2, t3` - Pre-registered fingerprint templates 1, 2, and 3 (three captures of the same finger)
-**[Return Value]**
-
-- `regTemplate, nil`: The registered template, trimmed to the actual size (the binding pre-allocates 2048 bytes)
-- `nil, error`: Failed, for example `ErrMergeFailed` (`-22`)
-
-#### DB.Add
-
-**[Function]** `func (db *DB) Add(fid uint32, template []byte) error`
-**[Purpose]** Adds a registered fingerprint template to the cache.
-**[Parameter Description]**
-
-- `fid`: Fingerprint ID (32-bit unsigned integer larger than 0)
-- `template`: Registered template (as returned by `Merge`)
-
-**[Return Value]**
-
-- `nil`: Succeeded
-- `error`: Failed (see Appendix 2)
-
-#### DB.Delete
-
-**[Function]** `func (db *DB) Delete(fid uint32) error`
-**[Purpose]** Deletes the registered template of a specified ID.
-**[Parameter Description]** `fid` - Fingerprint ID
-**[Return Value]**
-
-- `nil`: Succeeded
-- `error`: Failed (see Appendix 2)
-
-#### DB.Clear
-
-**[Function]** `func (db *DB) Clear() error`
-**[Purpose]** Clears the cache.
-**[Parameter Description]** None
-**[Return Value]**
-
-- `nil`: Succeeded
-- `error`: Failed (see Appendix 2)
-
-#### DB.Count
-
-**[Function]** `func (db *DB) Count() (uint32, error)`
-**[Purpose]** Acquires the number of fingerprint templates in the cache.
-**[Parameter Description]** None
-**[Return Value]**
-
-- `count, nil`: Fingerprint count
-- `0, error`: Failed (see Appendix 2)
-
-#### DB.Identify
-
-**[Function]** `func (db *DB) Identify(template []byte) (fid, score uint32, err error)`
-**[Purpose]** Conducts a 1:N comparison against all templates in the cache.
-**[Parameter Description]** `template` - Fingerprint template to look for (the length is passed as `cbTemplate`)
-**[Return Value]**
-
-- `fid, score, nil`: The matching fingerprint ID and the comparison score
-- `0, 0, error`: Failed, for example `ErrMatchFailed` (`-20`) when no template matches (see Appendix 2)
-
-#### DB.Match
-
-**[Function]** `func (db *DB) Match(t1, t2 []byte) (int, error)`
-**[Purpose]** Compares whether two fingerprint templates match (1:1 comparison).
-**[Parameter Description]** `t1`, `t2` - The two templates (their lengths are passed as `cbTemplate1` and `cbTemplate2`)
-**[Return Value]**
-
-- `score, nil`: Comparison score (`score >= 0`). The caller decides whether the score is high enough to be accepted as a match.
-- `0, error`: The C function returned a negative value, which is converted to an `Error` (see Appendix 2)
-
-#### DB.ExtractFromImage
-
-**[Function]** `func (db *DB) ExtractFromImage(path string, dpi uint32) ([]byte, error)`
-**[Purpose]** Extracts a fingerprint template from a BMP or JPG file.
-**[Parameter Description]**
-
-- `path`: Full path of a file
-- `dpi`: Image DPI
-
-**[Return Value]**
-
-- `template, nil`: The extracted template, trimmed to the actual size
-- `nil, error`: Failed (see Appendix 2)
-
-**[Note]** Only the SDK of the standard version supports this function. Other versions return `ErrNotSupported` (`-4`).
-
-## 6. Usage Example
-
-The typical flow is: initialize, open a reader, capture three times, merge into a registered template, add it to the cache, then identify later captures.
+### Init
 
 ```go
-if err := zkfp.Init(); err != nil { log.Fatal(err) }
-defer zkfp.Terminate()
-
-dev, err := zkfp.OpenDevice(0)
-if err != nil { log.Fatal(err) }
-defer dev.Close()
-
-db, err := zkfp.NewDB()
-if err != nil { log.Fatal(err) }
-defer db.Close()
-
-size, _ := dev.ImageSize()
-img := make([]byte, size)
-
-capture := func() []byte {
-    for {
-        tpl, err := dev.AcquireFingerprint(img)
-        if err == nil { return tpl }
-        if !errors.Is(err, zkfp.ErrCaptureFailed) { log.Fatal(err) }
-        time.Sleep(100 * time.Millisecond) // no finger yet
-    }
-}
-
-// Registration: three captures of the same finger
-t1, t2, t3 := capture(), capture(), capture()
-reg, err := db.Merge(t1, t2, t3)
-if err != nil { log.Fatal(err) }
-if err := db.Add(1, reg); err != nil { log.Fatal(err) }
-
-// Identification (1:N)
-fid, score, err := db.Identify(capture())
-if err != nil { log.Fatal(err) }
-fmt.Println("matched id", fid, "score", score)
+func Init() error
 ```
 
-## 7. Appendixes
+**Purpose:** Initializes the ZKFinger SDK resources. Must be called once before invoking other methods.
+
+**Parameters:** None
+
+**Return value:**
+
+- `nil`: Succeeded (including code 1 indicating already initialized)
+- `error`: Failed (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
+
+### Terminate
+
+```go
+func Terminate() error
+```
+
+**Purpose:** Releases ZKFinger SDK resources.
+
+**Parameters:** None
+
+**Return value:**
+
+- `nil`: Succeeded
+- `error`: Failed (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
+
+### GetDeviceCount
+
+```go
+func GetDeviceCount() (int, error)
+```
+
+**Purpose:** Returns the number of connected fingerprint devices.
+
+**Parameters:** None
+
+**Return value:**
+
+- `int, nil`: Connected device count (>= 0)
+- `0, error`: Failed to query device count (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
+
+### OpenDevice
+
+```go
+func OpenDevice(index int) (*Device, error)
+```
+
+**Purpose:** Opens a fingerprint device by its zero-based index.
+
+**Parameters:**
+
+- `index`: Zero-based device index integer
+
+**Return value:**
+
+- `*Device, nil`: Opened device handle instance
+- `nil, error`: Failed to open device (returns `ErrOpenDevice`)
+
+### DBInit
+
+```go
+func DBInit() (*DB, error)
+```
+
+**Purpose:** Creates an algorithm cache/database instance.
+
+**Parameters:** None
+
+**Return value:**
+
+- `*DB, nil`: Initialized algorithm database handle instance
+- `nil, error`: Initialization failed
+
+## 7. Device Methods
+
+### Device.Close
+
+```go
+func (d *Device) Close() error
+```
+
+**Purpose:** Closes the fingerprint device handle.
+
+**Parameters:** None
+
+**Return value:**
+
+- `nil`: Succeeded
+- `error`: Failed to close device handle (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
+
+### Device.ImageSize
+
+```go
+func (d *Device) ImageSize() (int, error)
+```
+
+**Purpose:** Queries the required fingerprint image buffer size from the device.
+
+**Parameters:** None
+
+**Return value:**
+
+- `int, nil`: Required image buffer size in bytes
+- `0, error`: Failed to retrieve size parameter (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
+
+### Device.AcquireFingerprint
+
+```go
+func (d *Device) AcquireFingerprint(image []byte) ([]byte, error)
+```
+
+**Purpose:** Captures a fingerprint image and extracts its template.
+
+**Parameters:**
+
+- `image`: Pre-allocated byte slice buffer to store the scanned fingerprint image (sized using `ImageSize`)
+
+**Return value:**
+
+- `[]byte, nil`: Extracted fingerprint template slice trimmed to actual size
+- `nil, error`: Capture or extraction failed (e.g., `ErrCaptureFailed`)
+
+### Device.AcquireFingerprintImage
+
+```go
+func (d *Device) AcquireFingerprintImage(image []byte) error
+```
+
+**Purpose:** Captures a raw fingerprint image without template extraction.
+
+**Parameters:**
+
+- `image`: Pre-allocated byte slice buffer to receive the raw image data
+
+**Return value:**
+
+- `nil`: Succeeded
+- `error`: Image capture failed (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
+
+### Device.GetParameter
+
+```go
+func (d *Device) GetParameter(code int, size int) ([]byte, error)
+```
+
+**Purpose:** Reads a device parameter code value.
+
+**Parameters:**
+
+- `code`: Integer parameter code (see [Appendix 1](#appendix-1-list-of-common-parameter-codes))
+- `size`: Allocation buffer size based on parameter type (e.g., 4 for integer, larger for strings)
+
+**Return value:**
+
+- `[]byte, nil`: Raw parameter bytes trimmed to size reported by SDK
+- `nil, error`: Parameter query failed (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
+
+### Device.SetParameter
+
+```go
+func (d *Device) SetParameter(code int, value []byte) error
+```
+
+**Purpose:** Writes or configures a device parameter code value.
+
+**Parameters:**
+
+- `code`: Integer parameter code (see [Appendix 1](#appendix-1-list-of-common-parameter-codes))
+- `value`: Raw parameter data bytes (e.g., 4-byte little-endian integer)
+
+**Return value:**
+
+- `nil`: Succeeded
+- `error`: Parameter update failed (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
+
+## 8. Database/Algorithm Methods
+
+### DB.Free
+
+```go
+func (db *DB) Free() error
+```
+
+**Purpose:** Releases the algorithm cache resources.
+
+**Parameters:** None
+
+**Return value:**
+
+- `nil`: Succeeded
+- `error`: Failed to release cache (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
+
+### DB.Merge
+
+```go
+func (db *DB) Merge(template1 []byte, template2 []byte, template3 []byte) ([]byte, error)
+```
+
+**Purpose:** Combines three fingerprint templates into a single registered template.
+
+**Parameters:**
+
+- `template1`: First capture template byte slice
+- `template2`: Second capture template byte slice
+- `template3`: Third capture template byte slice
+
+**Return value:**
+
+- `[]byte, nil`: Merged template slice trimmed to final size
+- `nil, error`: Merge operation failed (e.g., `ErrMergeFailed`)
+
+### DB.Add
+
+```go
+func (db *DB) Add(fid uint, template []byte) error
+```
+
+**Purpose:** Adds a registered fingerprint template to the algorithm cache with an associated ID.
+
+**Parameters:**
+
+- `fid`: Unsigned integer fingerprint ID (> 0)
+- `template`: Registered template byte slice
+
+**Return value:**
+
+- `nil`: Succeeded
+- `error`: Failed to add template (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
+
+### DB.Del
+
+```go
+func (db *DB) Del(fid uint) error
+```
+
+**Purpose:** Deletes a fingerprint template from the algorithm cache by its ID.
+
+**Parameters:**
+
+- `fid`: Unsigned integer fingerprint ID to delete
+
+**Return value:**
+
+- `nil`: Succeeded
+- `error`: Failed to delete template (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
+
+### DB.Clear
+
+```go
+func (db *DB) Clear() error
+```
+
+**Purpose:** Removes all fingerprint templates from the algorithm cache.
+
+**Parameters:** None
+
+**Return value:**
+
+- `nil`: Succeeded
+- `error`: Failed to clear cache (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
+
+### DB.Count
+
+```go
+func (db *DB) Count() (int, error)
+```
+
+**Purpose:** Returns the total number of fingerprint templates stored in the algorithm cache.
+
+**Parameters:** None
+
+**Return value:**
+
+- `int, nil`: Template count integer
+- `0, error`: Failed to fetch count (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
+
+### DB.Identify
+
+```go
+func (db *DB) Identify(template []byte) (uint, uint, error)
+```
+
+**Purpose:** Performs a 1:N fingerprint comparison against all templates in the cache.
+
+**Parameters:**
+
+- `template`: Query fingerprint template byte slice
+
+**Return value:**
+
+- `fid, score, nil`: Matched fingerprint ID and comparison score (both `uint`)
+- `0, 0, error`: Identification failed or no match found (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
+
+### DB.Match
+
+```go
+func (db *DB) Match(template1, template2 []byte) (int, error)
+```
+
+**Purpose:** Compares two fingerprint templates directly (1:1 matching).
+
+**Parameters:**
+
+- `template1`: First fingerprint template byte slice
+- `template2`: Second fingerprint template byte slice
+
+**Return value:**
+
+- `int, nil`: Comparison match score integer (>= 0)
+- `0, error`: Comparison calculation failed (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
+
+### DB.ExtractFromImage
+
+```go
+func (db *DB) ExtractFromImage(path string, dpi uint) ([]byte, error)
+```
+
+**Purpose:** Extracts a fingerprint template from an image file (BMP or JPG format).
+
+**Parameters:**
+
+- `path`: Full file system path string to the image file
+- `dpi`: Image resolution DPI unsigned integer
+
+**Return value:**
+
+- `[]byte, nil`: Extracted template byte slice trimmed to actual size
+- `nil, error`: Extraction failed or unsupported version (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
+
+## 9. Usage Example
+
+```go
+package main
+
+import (
+    "fmt"
+    "log"
+
+    "github.com/elmyrockers/go-zkfp"
+)
+
+func main() {
+    // 1. Initialize the SDK
+    if err := zkfp.Init(); err != nil {
+        log.Fatalf("Init failed: %v", err)
+    }
+    defer zkfp.Terminate()
+
+    // 2. Initialize the algorithm database/cache for matching & storage
+    db, err := zkfp.DBInit()
+    if err != nil {
+        log.Fatalf("DBInit failed: %v", err)
+    }
+    defer db.Free()
+
+    // 3. Check for connected devices
+    count, err := zkfp.GetDeviceCount()
+    if err != nil || count == 0 {
+        log.Fatalf("No device found: %v", err)
+    }
+
+    // 4. Open the first device
+    dev, err := zkfp.OpenDevice(0)
+    if err != nil {
+        log.Fatalf("OpenDevice failed: %v", err)
+    }
+    defer dev.Close()
+
+    fmt.Println("Device opened and Algorithm DB initialized successfully!")
+
+    // 5. Query required image buffer size and capture fingerprint
+    imgSizeBytes, err := dev.ImageSize()
+    if err != nil {
+        log.Fatalf("Failed to get image size: %v", err)
+    }
+
+    imgBuf := make([]byte, imgSizeBytes)
+    fmt.Println("Please place your finger on the scanner...")
+
+    template, err := dev.AcquireFingerprint(imgBuf)
+    if err != nil {
+        log.Fatalf("Fingerprint capture failed: %v", err)
+    }
+
+    // 6. Add the captured template to the algorithm database with ID 1
+    var fingerprintID uint = 1
+    if err := db.Add(fingerprintID, template); err != nil {
+        log.Fatalf("Failed to add template to DB: %v", err)
+    }
+
+    totalCount, _ := db.Count()
+    fmt.Printf("Fingerprint successfully registered! Total records in DB: %d\n", totalCount)
+}
+```
+
+## 10. Appendixes
 
 ### Appendix 1: List of Common Parameter Codes
 
-| Code | Go constant | Property | Data type | Description |
-|---:|---|---|---|---|
-| 1 | `ParamImageWidth` | Read-only | Int | Image width |
-| 2 | `ParamImageHeight` | Read-only | Int | Image height |
-| 3 | `ParamImageDPI` | Read-write (LIVEID20R only) | Int | Image DPI (750/1000 recommended for children) |
-| 106 | `ParamImageSize` | Read-only | Int | Image data size |
-| 1015 | `ParamVIDPID` | Read-only | 4-byte array | VID & PID bytes (former two indicate VID, latter two PID) |
-| 2002 | `ParamAntiFake` | Read-write (LIVEID20R only) | Int | Anti-fake function (1: enable; 0: disable) |
-| 2004 | `ParamAntiFakeStatus` | Read-only | Int | True if lower five bits are all 1's (`value&31==31`) |
-| 1101 | `ParamVendor` | Read-only | String | Vendor information |
-| 1102 | `ParamProductName` | Read-only | String | Product name |
-| 1103 | `ParamSerialNumber` | Read-only | String | Device SN |
-| 101 | `ParamLEDWhite` | Write-only | Int | 1 indicates white light blinks; 0 indicates disabled |
-| 102 | `ParamLEDGreen` | Write-only | Int | 1 indicates green light blinks; 0 indicates disabled |
-| 103 | `ParamLEDRed` | Write-only | Int | 1 indicates red light blinks; 0 indicates disabled |
-| 104 | `ParamBuzzer` | Write-only | Int | 1 indicates buzzing started; 0 indicates disabled |
-| 10001 | `ParamFormat` | Write-only (ISO/ANSI only) | Int | 0: ANSI378 (`FormatANSI378`); 1: ISO 19794-2 (`FormatISO`) |
-
-Integer values are passed as 4-byte little-endian values. Strings are returned as NUL-terminated byte strings, and the string helpers trim the terminator.
+| Parameter Code | Property | Data Type | Description |
+|---:|---|---|---|
+| 1 | Read-only | Int | Image width |
+| 2 | Read-only | Int | Image height |
+| 3 | Read-write (LIVEID20R only) | Int | Image DPI (750/1000 recommended for children) |
+| 106 | Read-only | Int | Image data size (`paramImageSize`) |
+| 1015 | Read-only | 4-byte array | VID & PID bytes (former two indicate VID, latter two PID) |
+| 2002 | Read-write (LIVEID20R only) | Int | Anti-fake function (1: enable; 0: disable) |
+| 2004 | Read-only | Int | True if lower five bits are all 1's (`value&31==31`) |
+| 1101 | Read-only | String | Vendor information |
+| 1102 | Read-only | String | Product name |
+| 1103 | Read-only | String | Device SN |
+| 101 | Write-only | Int | 1 indicates white light blinks; 0 indicates disabled |
+| 102 | Write-only | Int | 1 indicates green light blinks; 0 indicates disabled |
+| 103 | Write-only | Int | 1 indicates red light blinks; 0 indicates disabled |
+| 104 | Write-only | Int | 1 indicates buzzing started; 0 indicates disabled |
+| 10001 | Write-only (ISO/ANSI only) | Int | 0: ANSI378; 1: ISO 19794-2 |
 
 ### Appendix 2: Descriptions of Returned Error Values
 
-Every error is a `zkfp.Error`. Test for a specific one with `errors.Is(err, zkfp.ErrNoDevice)`, or read the raw code with `errors.As`.
-
-| Code | Go value | Description |
+| Code | Go Error Value | Description |
 |---:|---|---|
-| 0 | (`nil`) | Operation succeeded |
-| 1 | (`nil`) | Initialized (already initialized; `Init` treats it as success) |
 | -1 | `ErrInitLib` | Failed to initialize the algorithm library |
 | -2 | `ErrInitCapture` | Failed to initialize the capture library |
 | -3 | `ErrNoDevice` | No device connected |
@@ -427,22 +565,12 @@ Every error is a `zkfp.Error`. Test for a specific one with `errors.Is(err, zkfp
 | -9 | `ErrExtractFailed` | Failed to extract the fingerprint template |
 | -10 | `ErrAbort` | Suspension operation |
 | -11 | `ErrNoMemory` | Insufficient memory |
-| -12 | `ErrBusy` | The fingerprint is being captured (the device is busy) |
-| -13 | `ErrAddFailed` | Failed to add the fingerprint template to the memory |
-| -14 | `ErrDeleteFailed` | Failed to delete the fingerprint template |
+| -12 | `ErrBusy` | Device is busy capturing |
+| -13 | `ErrAddFailed` | Failed to add template to memory |
+| -14 | `ErrDeleteFailed` | Failed to delete template |
 | -17 | `ErrOperationFailed` | Operation failed (other error) |
 | -18 | `ErrCaptureCancelled` | Capture cancelled |
 | -20 | `ErrMatchFailed` | Fingerprint comparison failed |
-| -22 | `ErrMergeFailed` | Failed to combine registered fingerprint templates |
+| -22 | `ErrMergeFailed` | Failed to combine registered templates |
 | -23 | `ErrOpenFile` | Opening the file failed |
 | -24 | `ErrImageProcess` | Image processing failed |
-
-Any other code is returned as an `Error` with that numeric value and the message "unknown error".
-
-### Appendix 3: Notes for Implementers
-
-- The binding uses `golang.org/x/sys/windows` instead of the frozen standard `syscall` package. Each `ZKFPM_*` symbol is resolved lazily with `windows.NewLazyDLL("libzkfp.dll").NewProc(...)`. Calls go through `Proc.Call`, so no cgo is needed. The dependency is fetched automatically by `go get`.
-- `windows.NewLazySystemDLL` is **not** used, because it only searches the Windows system directory, where `libzkfp.dll` is normally not installed. When `SetDLLPath` is given a full path, the DLL is loaded from exactly that path, which also avoids DLL preloading (search-order hijacking).
-- Handles returned by the DLL are stored as `uintptr`. A zero handle means failure.
-- Go slices passed to the DLL must stay referenced until the call returns (`runtime.KeepAlive`), and the DLL must not keep the pointers after the call returns.
-- `ZKFPM_GetParameters` and the other `[in/out]` size arguments are implemented by passing a pointer to a `uint32` that holds the buffer size on entry and the returned size on exit.
