@@ -53,16 +53,15 @@ type DB struct {
 // Init initializes the ZKFinger SDK.
 func Init() error {
 	if err := dll.Load(); err != nil {
-		return err
+		var dllErr *windows.DLLError
+		if errors.As(err, &dllErr) {
+			return fmt.Errorf("%w: %v (%d)", ErrLoadLibrary, dllErr.Err, dllErr.Err)
+		}
+		return fmt.Errorf("%w: %v", ErrLoadLibrary, err)
 	}
 
 	r1, _, _ := procInit.Call()
-	
-	code := int32(r1)
-	if code == 1 { // already initialized
-		return nil
-	}
-	return check(code)
+	return check(int32(r1))
 }
 
 // Terminate terminates the ZKFinger SDK.
