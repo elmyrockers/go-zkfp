@@ -262,4 +262,4 @@ zkfp: unknown error (<code>)
 | `ErrMergeFailed`      | `-22` | Failed to combine registered fingerprint templates.                 |
 | `ErrOpenFile`         | `-23` | Failed to open a file.                                              |
 | `ErrImageProcess`     | `-24` | Fingerprint image processing failed.                                |
-| `ErrLoadLibrary`      |`-240` | Failed to load libzkfp.dll (ZKFinger Driver)                        |
+| `ErrLoadLibrary`      |`-100` | Failed to load libzkfp.dll (ZKFinger Driver)                        |
