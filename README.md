@@ -34,6 +34,64 @@ cgo and a C compiler are **not** required.
    import "github.com/elmyrockers/go-zkfp"
 ```
 
+## Example Usage
+
+```go
+package main
+
+import (
+    "errors"
+    "fmt"
+    "log"
+    "time"
+
+    "github.com/elmyrockers/go-zkfp"
+)
+
+func main() {
+    // Initialize the ZKFinger SDK (call once before anything else)
+    if err := zkfp.Init(); err != nil {
+        log.Fatal(err)
+    }
+    defer zkfp.Terminate() // release SDK resources on exit
+
+    // Open the first connected fingerprint reader (index 0)
+    dev, err := zkfp.OpenDevice(0)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer dev.Close() // close the reader on exit
+
+    // Ask the reader how big the image buffer needs to be
+    size, err := dev.ImageSize()
+    if err != nil {
+        log.Fatal(err)
+    }
+    img := make([]byte, size)
+
+    fmt.Println("Place your finger on the scanner...")
+
+    for {
+        // Try to capture a fingerprint image and extract its template
+        template, err := dev.AcquireFingerprint(img)
+
+        // No finger captured yet: wait a moment and try again
+        if errors.Is(err, zkfp.ErrCaptureFailed) {
+            time.Sleep(100 * time.Millisecond)
+            continue
+        }
+
+        // Any other error is a real failure
+        if err != nil {
+            log.Fatal(err)
+        }
+
+        fmt.Printf("Captured template: %d bytes\n", len(template))
+        break // remove this line to keep scanning fingers
+    }
+}
+```
+
 ## API Reference
 
 ### SDK
