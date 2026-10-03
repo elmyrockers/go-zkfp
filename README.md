@@ -155,25 +155,27 @@ zkfp: unknown error (<code>)
 
 #### Error constants
 
-| Error                 |  Code | Description                                         |
-| --------------------- | ----: | --------------------------------------------------- |
-| `ErrInitLib`          |  `-1` | Failed to initialize the algorithm library.         |
-| `ErrInitCapture`      |  `-2` | Failed to initialize the capture library.           |
-| `ErrNoDevice`         |  `-3` | No fingerprint device is connected.                 |
-| `ErrNotSupported`     |  `-4` | The requested operation is not supported.           |
-| `ErrInvalidParam`     |  `-5` | An invalid parameter was supplied.                  |
-| `ErrOpenDevice`       |  `-6` | Failed to open the fingerprint device.              |
-| `ErrInvalidHandle`    |  `-7` | The device handle is invalid.                       |
-| `ErrCaptureFailed`    |  `-8` | Fingerprint capture failed.                         |
-| `ErrExtractFailed`    |  `-9` | Fingerprint template extraction failed.             |
-| `ErrAbort`            | `-10` | The operation was suspended.                        |
-| `ErrNoMemory`         | `-11` | Insufficient memory.                                |
-| `ErrBusy`             | `-12` | The fingerprint device is busy.                     |
-| `ErrAddFailed`        | `-13` | Failed to add a fingerprint template to memory.     |
-| `ErrDeleteFailed`     | `-14` | Failed to delete a fingerprint template.            |
-| `ErrOperationFailed`  | `-17` | The operation failed.                               |
-| `ErrCaptureCancelled` | `-18` | Fingerprint capture was cancelled.                  |
-| `ErrMatchFailed`      | `-20` | Fingerprint comparison failed.                      |
-| `ErrMergeFailed`      | `-22` | Failed to combine registered fingerprint templates. |
-| `ErrOpenFile`         | `-23` | Failed to open a file.                              |
-| `ErrImageProcess`     | `-24` | Fingerprint image processing failed.                |
+| Error                 |  Code | Description                                                         |
+| --------------------- | ----: | ------------------------------------------------------------------- |
+| `nil`                 |   `1` | The SDK is already initialized (`Init` treats this as success).     |
+| `nil`                 |   `0` | The operation succeeded.                                            |
+| `ErrInitLib`          |  `-1` | Failed to initialize the algorithm library.                         |
+| `ErrInitCapture`      |  `-2` | Failed to initialize the capture library.                           |
+| `ErrNoDevice`         |  `-3` | No fingerprint device is connected.                                 |
+| `ErrNotSupported`     |  `-4` | The requested operation is not supported.                           |
+| `ErrInvalidParam`     |  `-5` | An invalid parameter was supplied.                                  |
+| `ErrOpenDevice`       |  `-6` | Failed to open the fingerprint device.                              |
+| `ErrInvalidHandle`    |  `-7` | The device handle is invalid.                                       |
+| `ErrCaptureFailed`    |  `-8` | Fingerprint capture failed.                                         |
+| `ErrExtractFailed`    |  `-9` | Fingerprint template extraction failed.                             |
+| `ErrAbort`            | `-10` | The operation was suspended.                                        |
+| `ErrNoMemory`         | `-11` | Insufficient memory.                                                |
+| `ErrBusy`             | `-12` | The fingerprint device is busy.                                     |
+| `ErrAddFailed`        | `-13` | Failed to add a fingerprint template to memory.                     |
+| `ErrDeleteFailed`     | `-14` | Failed to delete a fingerprint template.                            |
+| `ErrOperationFailed`  | `-17` | The operation failed.                                               |
+| `ErrCaptureCancelled` | `-18` | Fingerprint capture was cancelled.                                  |
+| `ErrMatchFailed`      | `-20` | Fingerprint comparison failed.                                      |
+| `ErrMergeFailed`      | `-22` | Failed to combine registered fingerprint templates.                 |
+| `ErrOpenFile`         | `-23` | Failed to open a file.                                              |
+| `ErrImageProcess`     | `-24` | Fingerprint image processing failed.                                |
