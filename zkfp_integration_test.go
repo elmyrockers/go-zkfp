@@ -153,9 +153,12 @@ func TestIntegration(t *testing.T) {
 	// -------------------------------------------------------------------------
 	// SDK init
 	// -------------------------------------------------------------------------
-
 	if !t.Run("Init", func(t *testing.T) {
-		if err := Init(); err != nil {
+		err := Init()
+		if errors.Is(err, ErrLoadLibrary) {
+			t.Fatalf("Init: %v (is the ZKTeco driver installed, and does GOARCH match libzkfp.dll?)", err)
+		}
+		if err != nil {
 			t.Fatalf("Init: %v", err)
 		}
 	}) {
@@ -170,13 +173,14 @@ func TestIntegration(t *testing.T) {
 		}
 	}()
 
-	// Init twice: the C result 1 ("already initialized") must count as success.
+	// Init twice: only 0 is success, so the C result 1 ("already initialized")
+	// must come back as ErrAlreadyInit.
 	t.Run("InitTwice", func(t *testing.T) {
-		if err := Init(); err != nil {
-			t.Fatalf("second Init: %v (the C result 1 should be treated as success)", err)
+		if err := Init(); !errors.Is(err, ErrAlreadyInit) {
+			t.Fatalf("second Init: got %v, want ErrAlreadyInit", err)
 		}
 	})
-
+	
 	// -------------------------------------------------------------------------
 	// Device
 	// -------------------------------------------------------------------------
