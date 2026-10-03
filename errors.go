@@ -6,6 +6,7 @@ import "fmt"
 type Error int32
 
 const (
+	ErrAlreadyInit      Error =  1  // already initialized
 	ErrInitLib          Error = -1  // failed to initialize the algorithm library
 	ErrInitCapture      Error = -2  // failed to initialize the capture library
 	ErrNoDevice         Error = -3  // no device connected
@@ -29,6 +30,7 @@ const (
 )
 
 var errText = map[Error]string{
+	ErrAlreadyInit:      "already initialized",
 	ErrInitLib:          "failed to initialize the algorithm library",
 	ErrInitCapture:      "failed to initialize the capture library",
 	ErrNoDevice:         "no device connected",
