@@ -8,9 +8,24 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// Parameter codes for (*Device).GetParameter and (*Device).SetParameter.
+// Integer parameters are 4-byte little-endian values.
 const (
-	// ZKFPM_GetParameters parameter for fingerprint image size.
-	paramImageSize = 106
+	ParamImageWidth     = 1     // Read: image width in pixels
+	ParamImageHeight    = 2     // Read: image height in pixels
+	ParamImageDPI       = 3     // Read/Write: image DPI (LIVEID20R only)
+	ParamWhiteLED       = 101   // Write: white LED (1 = blink, 0 = off)
+	ParamGreenLED       = 102   // Write: green LED (1 = blink, 0 = off)
+	ParamRedLED         = 103   // Write: red LED (1 = blink, 0 = off)
+	ParamBuzzer         = 104   // Write: buzzer (1 = start, 0 = off)
+	ParamImageSize      = 106   // Read: image buffer size in bytes
+	ParamVIDPID         = 1015  // Read: 4 bytes, VID then PID
+	ParamVendorInfo     = 1101  // Read: string
+	ParamProductName    = 1102  // Read: string
+	ParamSerialNumber   = 1103  // Read: string
+	ParamAntiFake       = 2002  // Read/Write: anti-fake (LIVEID20R only)
+	ParamFakeStatus     = 2004  // Read: fake status (value&31 == 31)
+	ParamTemplateFormat = 10001 // Write: 0 = ANSI378, 1 = ISO 19794-2
 
 	// Maximum fingerprint template size defined by the ZKFinger SDK.
 	maxTemplateSize = 2048
@@ -131,7 +146,7 @@ func (d *Device) ImageSize() (int, error) {
 
 	r1, _, _ := procGetParameters.Call(
 		uintptr(d.handle),
-		uintptr(paramImageSize),
+		uintptr(ParamImageSize),
 		uintptr(unsafe.Pointer(&size)),
 		uintptr(unsafe.Pointer(&n)), // pointer to the length, not the length itself
 	)
