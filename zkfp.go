@@ -266,8 +266,8 @@ func (d *Device) SetParameter(code int, value []byte) error {
  
 	return check(int32(r1))
 }
-
 //-----------------------------------------------------------------------------------------------------------------------------------
+
 // DBInit creates an algorithm cache.
 func DBInit() (*DB, error) {
 	r1, _, _ := procDBInit.Call()
