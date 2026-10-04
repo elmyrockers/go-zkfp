@@ -51,12 +51,12 @@
 
 \section{Installation and Deployment}
 \begin{enumerate}
-    \item Install ZKFinger SDK 5.x / ZKOnline SDK 5.x.
+    \item Install the ZKFinger driver (ZKFinger SDK 5.x / ZKOnline SDK 5.x), which you can download from \url{https://www.zkteco.com}.
     \item Add the package to your module:
 \begin{lstlisting}
 go get github.com/elmyrockers/go-zkfp
 \end{lstlisting}
-    \item Make \texttt{libzkfp.dll} loadable by placing it next to your executable or in a directory on your system \texttt{PATH}.
+    \item Make \texttt{libzkfp.dll} loadable by placing it next to your executable or in a directory on your system \texttt{PATH}. If it cannot be loaded, \texttt{Init} fails with \texttt{ErrLoadLibrary}.
     \item Import the package in your code:
 \begin{lstlisting}
 import "github.com/elmyrockers/go-zkfp"
@@ -71,6 +71,9 @@ import "github.com/elmyrockers/go-zkfp"
     \item \textbf{Handles.} C \texttt{HANDLE} types are encapsulated into clean Go types: \texttt{*Device} (for reader instances) and \texttt{*DB} (for algorithm caches/databases).
     \item \textbf{Buffers.} C pointer-and-size parameter pairs are represented as native Go slices (\texttt{[]byte}). Output buffers are automatically allocated and trimmed to the actual data size returned by the SDK.
     \item \textbf{Cleanup.} \texttt{Close()} and \texttt{Free()} methods are implemented safely and idempotently.
+    \item \textbf{Closed or nil handles.} All methods return \texttt{ErrInvalidHandle} on a closed or nil \texttt{Device}/\texttt{DB}, and \texttt{ErrInvalidParam} for empty buffers or paths.
+    \item \textbf{Template size.} Templates are at most 2048 bytes (\texttt{maxTemplateSize}).
+    \item \textbf{Order of use.} \texttt{Init} $\rightarrow$ \texttt{OpenDevice} $\rightarrow$ \texttt{DBInit} $\rightarrow$ \ldots $\rightarrow$ \texttt{DB.Free} $\rightarrow$ \texttt{Device.Close} $\rightarrow$ \texttt{Terminate}.
 \end{itemize}
 
 \subsection{Function Mapping}
@@ -111,27 +114,26 @@ type Device struct { /* unexported */ }
 type DB struct { /* unexported */ }
 type Error int32
 
-const (
-    maxTemplateSize = 2048
-    paramImageSize  = 106
-)
+const maxTemplateSize = 2048
 \end{lstlisting}
+
+Exported constants are also provided for parameter codes (\texttt{ParamImageWidth}, \texttt{ParamGreenLED}, and so on; see Appendix 1) and for error values (\texttt{ErrNoDevice}, \texttt{ErrCaptureFailed}, and so on; see Appendix 2).
 
 \section{Global Library Functions}
 
 \subsection{Init}
 \textbf{[Function]} \texttt{func Init() error} \\
-\textbf{[Purpose]} Initializes the ZKFinger SDK resources. Must be called once before invoking other methods. \\
+\textbf{[Purpose]} Initializes the ZKFinger SDK and loads \texttt{libzkfp.dll}. Must be called once before invoking other methods. \\
 \textbf{[Parameter Description]} None \\
 \textbf{[Return Value]} 
 \begin{itemize}
     \item \texttt{nil}: Succeeded (including code 1 indicating already initialized)
-    \item \texttt{error}: Failed (See Appendix 2)
+    \item \texttt{error}: Failed, e.g. \texttt{ErrLoadLibrary} if the DLL cannot be loaded (See Appendix 2)
 \end{itemize}
 
 \subsection{Terminate}
 \textbf{[Function]} \texttt{func Terminate() error} \\
-\textbf{[Purpose]} Releases ZKFinger SDK resources. \\
+\textbf{[Purpose]} Releases ZKFinger SDK resources. Close all devices and free all DBs first. \\
 \textbf{[Parameter Description]} None \\
 \textbf{[Return Value]} 
 \begin{itemize}
@@ -204,7 +206,7 @@ const (
 \textbf{[Return Value]} 
 \begin{itemize}
     \item \texttt{[]byte, nil}: Extracted fingerprint template slice trimmed to actual size
-    \item \texttt{nil, error}: Capture or extraction failed (e.g., \texttt{ErrCaptureFailed})
+    \item \texttt{nil, error}: Capture or extraction failed. \texttt{ErrCaptureFailed} is returned while no finger is on the sensor, so retry after a short delay (see Usage Example)
 \end{itemize}
 
 \subsection{Device.AcquireFingerprintImage}
@@ -217,7 +219,7 @@ const (
 \textbf{[Return Value]} 
 \begin{itemize}
     \item \texttt{nil}: Succeeded
-    \item \texttt{error}: Image capture failed (See Appendix 2)
+    \item \texttt{error}: Image capture failed. \texttt{ErrCaptureFailed} is returned while no finger is on the sensor (See Appendix 2)
 \end{itemize}
 
 \subsection{Device.GetParameter}
@@ -354,7 +356,7 @@ const (
 \textbf{[Purpose]} Extracts a fingerprint template from an image file (BMP or JPG format). \\
 \textbf{[Parameter Description]} 
 \begin{itemize}
-    \item \texttt{path}: Full file system path string to the image file
+    \item \texttt{path}: Full file system path string to the image file. The path must be ASCII, because the SDK expects an ANSI string
     \item \texttt{dpi}: Image resolution DPI unsigned integer
 \end{itemize}
 \textbf{[Return Value]} 
@@ -368,9 +370,11 @@ const (
 package main
 
 import (
+    "errors"
     "fmt"
     "log"
-    
+    "time"
+
     "github.com/elmyrockers/go-zkfp"
 )
 
@@ -403,21 +407,33 @@ func main() {
 
     fmt.Println("Device opened and Algorithm DB initialized successfully!")
 
-    // 5. Query required image buffer size and capture fingerprint
+    // 5. Query required image buffer size
     imgSizeBytes, err := dev.ImageSize()
     if err != nil {
         log.Fatalf("Failed to get image size: %v", err)
     }
-
     imgBuf := make([]byte, imgSizeBytes)
+
     fmt.Println("Please place your finger on the scanner...")
 
-    template, err := dev.AcquireFingerprint(imgBuf)
-    if err != nil {
-        log.Fatalf("Fingerprint capture failed: %v", err)
+    // 6. Poll until a finger is captured
+    var template []byte
+    for {
+        template, err = dev.AcquireFingerprint(imgBuf)
+
+        // No finger on the sensor yet: wait a moment and try again
+        if errors.Is(err, zkfp.ErrCaptureFailed) {
+            time.Sleep(100 * time.Millisecond)
+            continue
+        }
+        // Any other error is a real failure
+        if err != nil {
+            log.Fatalf("Fingerprint capture failed: %v", err)
+        }
+        break
     }
 
-    // 6. Add the captured template to the algorithm database with ID 1
+    // 7. Add the captured template to the algorithm database with ID 1
     var fingerprintID uint = 1
     if err := db.Add(fingerprintID, template); err != nil {
         log.Fatalf("Failed to add template to DB: %v", err)
@@ -461,6 +477,26 @@ func main() {
 \end{tabularx}
 \end{table}
 
+\subsubsection*{Reading a parameter}
+\begin{lstlisting}
+value, err := device.GetParameter(zkfp.ParamImageWidth, 4)
+if err != nil {
+    return err
+}
+
+width := int(binary.LittleEndian.Uint32(value))
+\end{lstlisting}
+
+\subsubsection*{Writing a parameter}
+\begin{lstlisting}
+// Turn the green LED on.
+if err := device.SetParameter(zkfp.ParamGreenLED, []byte{1, 0, 0, 0}); err != nil {
+    return err
+}
+\end{lstlisting}
+
+\texttt{ImageSize()} already wraps \texttt{ParamImageSize}, so you rarely need to read it yourself.
+
 \subsection{Appendix 2: Descriptions of Returned Error Values}
 \begin{table}[htbp]
 \centering
@@ -468,7 +504,7 @@ func main() {
 \toprule
 \textbf{Code} & \textbf{Go Error Value} & \textbf{Description} \\
 \midrule
-1 & \texttt{nil} & SDK already initialized (treated as success by \texttt{Init}) \\
+1 & \texttt{ErrAlreadyInit} & SDK already initialized (treated as success by \texttt{Init}) \\
 0 & \texttt{nil} & Operation succeeded \\
 -1 & \texttt{ErrInitLib} & Failed to initialize the algorithm library \\
 -2 & \texttt{ErrInitCapture} & Failed to initialize the capture library \\
@@ -490,8 +526,56 @@ func main() {
 -22 & \texttt{ErrMergeFailed} & Failed to combine registered templates \\
 -23 & \texttt{ErrOpenFile} & Opening the file failed \\
 -24 & \texttt{ErrImageProcess} & Image processing failed \\
+-100 & \texttt{ErrLoadLibrary} & Failed to load \texttt{libzkfp.dll} (ZKFinger driver) \\
 \bottomrule
 \end{tabularx}
 \end{table}
+
+\subsection{Appendix 3: Error Handling}
+Every function that talks to the SDK returns a \texttt{zkfp.Error}, an \texttt{int32} that holds the original \texttt{libzkfp.dll} result code.
+
+\begin{lstlisting}
+type Error int32
+\end{lstlisting}
+
+\textbf{Basic check.} Most calls only need a normal \texttt{err != nil} check:
+\begin{lstlisting}
+if err := zkfp.Init(); err != nil {
+    log.Fatal(err)
+}
+\end{lstlisting}
+
+\textbf{Specific errors.} Compare against a constant with \texttt{errors.Is}. This is the usual way to wait for a finger, because \texttt{ErrCaptureFailed} only means nothing is on the sensor yet:
+\begin{lstlisting}
+for {
+    err := device.AcquireFingerprintImage(buf)
+    if err == nil {
+        break
+    }
+    if !errors.Is(err, zkfp.ErrCaptureFailed) {
+        return err
+    }
+    time.Sleep(100 * time.Millisecond)
+}
+\end{lstlisting}
+
+\textbf{Raw code.} Use \texttt{errors.As} to read the SDK result code:
+\begin{lstlisting}
+var zkErr zkfp.Error
+
+if errors.As(err, &zkErr) {
+    fmt.Println("ZKFinger error code:", int32(zkErr))
+}
+\end{lstlisting}
+
+\textbf{Messages.} Each message contains a description and the SDK code:
+\begin{lstlisting}
+zkfp: failed to initialize the algorithm library (-1)
+\end{lstlisting}
+
+A non-zero result code that has no constant is still returned as a \texttt{zkfp.Error}:
+\begin{lstlisting}
+zkfp: unknown error (<code>)
+\end{lstlisting}
 
 \end{document}
