@@ -73,7 +73,7 @@ This document describes the Go API, mapping one-to-one to the C functions of the
    go get github.com/elmyrockers/go-zkfp
    ```
 
-3. Make `libzkfp.dll` loadable by placing it next to your executable or in a directory on your system `PATH`. If it cannot be loaded, `Init` fails with `ErrLoadLibrary`.
+3. Make `libzkfp.dll` loadable by placing it next to your executable or in a directory on your system `PATH`.
 4. Import the package in your code:
 
    ```go
@@ -128,8 +128,6 @@ type Error int32
 const maxTemplateSize = 2048
 ```
 
-Exported constants are also provided for parameter codes (`ParamImageWidth`, `ParamGreenLED`, and so on; see [Appendix 1](#appendix-1-list-of-common-parameter-codes)) and for error values (`ErrNoDevice`, `ErrCaptureFailed`, and so on; see [Appendix 2](#appendix-2-descriptions-of-returned-error-values)).
-
 ## 6. Global Library Functions
 
 ### Init
@@ -144,8 +142,8 @@ func Init() error
 
 **Return value:**
 
-- `nil`: Succeeded (including code 1 indicating already initialized)
-- `error`: Failed, e.g. `ErrLoadLibrary` if the DLL cannot be loaded (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
+- `nil`: Succeeded
+- `error`: Failed (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
 
 ### Terminate
 
@@ -595,7 +593,7 @@ if err := device.SetParameter(zkfp.ParamGreenLED, []byte{1, 0, 0, 0}); err != ni
 
 | Code | Go Error Value | Description |
 |---:|---|---|
-| 1 | `ErrAlreadyInit` | SDK already initialized (treated as success by `Init`) |
+| 1 | `ErrAlreadyInit` | The SDK is already initialized |
 | 0 | `nil` | Operation succeeded |
 | -1 | `ErrInitLib` | Failed to initialize the algorithm library |
 | -2 | `ErrInitCapture` | Failed to initialize the capture library |
