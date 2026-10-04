@@ -160,7 +160,7 @@ func main() {
 #### Reading a parameter
 
 ```go
-value, err := dev.GetParameter(zkfp.ParamImageWidth, 4)
+value, err := device.GetParameter(zkfp.ParamImageWidth, 4)
 if err != nil {
     return err
 }
@@ -172,7 +172,7 @@ width := int(binary.LittleEndian.Uint32(value))
 
 ```go
 // Turn the green LED on.
-if err := dev.SetParameter(zkfp.ParamGreenLED, []byte{1, 0, 0, 0}); err != nil {
+if err := device.SetParameter(zkfp.ParamGreenLED, []byte{1, 0, 0, 0}); err != nil {
     return err
 }
 ```
@@ -201,7 +201,7 @@ To react to a specific error, compare against its constant with `errors.Is`. Thi
 
 ```go
 for {
-    err := dev.AcquireFingerprintImage(buf)
+    err := device.AcquireFingerprintImage(buf)
     if err == nil {
         break
     }
