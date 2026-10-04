@@ -56,7 +56,7 @@
 \begin{lstlisting}
 go get github.com/elmyrockers/go-zkfp
 \end{lstlisting}
-    \item Make \texttt{libzkfp.dll} loadable by placing it next to your executable or in a directory on your system \texttt{PATH}. If it cannot be loaded, \texttt{Init} fails with \texttt{ErrLoadLibrary}.
+    \item Make \texttt{libzkfp.dll} loadable by placing it next to your executable or in a directory on your system \texttt{PATH}.
     \item Import the package in your code:
 \begin{lstlisting}
 import "github.com/elmyrockers/go-zkfp"
@@ -117,8 +117,6 @@ type Error int32
 const maxTemplateSize = 2048
 \end{lstlisting}
 
-Exported constants are also provided for parameter codes (\texttt{ParamImageWidth}, \texttt{ParamGreenLED}, and so on; see Appendix 1) and for error values (\texttt{ErrNoDevice}, \texttt{ErrCaptureFailed}, and so on; see Appendix 2).
-
 \section{Global Library Functions}
 
 \subsection{Init}
@@ -127,8 +125,8 @@ Exported constants are also provided for parameter codes (\texttt{ParamImageWidt
 \textbf{[Parameter Description]} None \\
 \textbf{[Return Value]} 
 \begin{itemize}
-    \item \texttt{nil}: Succeeded (including code 1 indicating already initialized)
-    \item \texttt{error}: Failed, e.g. \texttt{ErrLoadLibrary} if the DLL cannot be loaded (See Appendix 2)
+    \item \texttt{nil}: Succeeded
+    \item \texttt{error}: Failed (See Appendix 2)
 \end{itemize}
 
 \subsection{Terminate}
@@ -504,7 +502,7 @@ if err := device.SetParameter(zkfp.ParamGreenLED, []byte{1, 0, 0, 0}); err != ni
 \toprule
 \textbf{Code} & \textbf{Go Error Value} & \textbf{Description} \\
 \midrule
-1 & \texttt{ErrAlreadyInit} & SDK already initialized (treated as success by \texttt{Init}) \\
+1 & \texttt{ErrAlreadyInit} & The SDK is already initialized \\
 0 & \texttt{nil} & Operation succeeded \\
 -1 & \texttt{ErrInitLib} & Failed to initialize the algorithm library \\
 -2 & \texttt{ErrInitCapture} & Failed to initialize the capture library \\
