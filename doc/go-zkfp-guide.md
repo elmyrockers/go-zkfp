@@ -42,6 +42,7 @@ Based on ZKTeco ZKFinger Reader SDK C API Version 2.0
 10. [Appendixes](#10-appendixes)
     - [Appendix 1: List of Common Parameter Codes](#appendix-1-list-of-common-parameter-codes)
     - [Appendix 2: Descriptions of Returned Error Values](#appendix-2-descriptions-of-returned-error-values)
+    - [Appendix 3: Error Handling](#appendix-3-error-handling)
 
 ---
 
@@ -65,14 +66,14 @@ This document describes the Go API, mapping one-to-one to the C functions of the
 
 ## 4. Installation and Deployment
 
-1. Install ZKFinger SDK 5.x / ZKOnline SDK 5.x.
+1. Install the ZKFinger driver (ZKFinger SDK 5.x / ZKOnline SDK 5.x), which you can download from [zkteco.com](https://www.zkteco.com).
 2. Add the package to your module:
 
    ```bash
    go get github.com/elmyrockers/go-zkfp
    ```
 
-3. Make `libzkfp.dll` loadable by placing it next to your executable or in a directory on your system `PATH`.
+3. Make `libzkfp.dll` loadable by placing it next to your executable or in a directory on your system `PATH`. If it cannot be loaded, `Init` fails with `ErrLoadLibrary`.
 4. Import the package in your code:
 
    ```go
@@ -87,6 +88,9 @@ This document describes the Go API, mapping one-to-one to the C functions of the
 - **Handles.** C `HANDLE` types are encapsulated into clean Go types: `*Device` (for reader instances) and `*DB` (for algorithm caches/databases).
 - **Buffers.** C pointer-and-size parameter pairs are represented as native Go slices (`[]byte`). Output buffers are automatically allocated and trimmed to the actual data size returned by the SDK.
 - **Cleanup.** `Close()` and `Free()` methods are implemented safely and idempotently.
+- **Closed or nil handles.** All methods return `ErrInvalidHandle` on a closed or nil `Device`/`DB`, and `ErrInvalidParam` for empty buffers or paths.
+- **Template size.** Templates are at most 2048 bytes (`maxTemplateSize`).
+- **Order of use.** `Init` → `OpenDevice` → `DBInit` → ... → `DB.Free` → `Device.Close` → `Terminate`.
 
 ### 5.2 Function Mapping
 
@@ -121,11 +125,10 @@ type Device struct { /* unexported */ }
 type DB struct { /* unexported */ }
 type Error int32
 
-const (
-    maxTemplateSize = 2048
-    paramImageSize  = 106
-)
+const maxTemplateSize = 2048
 ```
+
+Exported constants are also provided for parameter codes (`ParamImageWidth`, `ParamGreenLED`, and so on; see [Appendix 1](#appendix-1-list-of-common-parameter-codes)) and for error values (`ErrNoDevice`, `ErrCaptureFailed`, and so on; see [Appendix 2](#appendix-2-descriptions-of-returned-error-values)).
 
 ## 6. Global Library Functions
 
@@ -135,14 +138,14 @@ const (
 func Init() error
 ```
 
-**Purpose:** Initializes the ZKFinger SDK resources. Must be called once before invoking other methods.
+**Purpose:** Initializes the ZKFinger SDK and loads `libzkfp.dll`. Must be called once before invoking other methods.
 
 **Parameters:** None
 
 **Return value:**
 
 - `nil`: Succeeded (including code 1 indicating already initialized)
-- `error`: Failed (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
+- `error`: Failed, e.g. `ErrLoadLibrary` if the DLL cannot be loaded (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
 
 ### Terminate
 
@@ -150,7 +153,7 @@ func Init() error
 func Terminate() error
 ```
 
-**Purpose:** Releases ZKFinger SDK resources.
+**Purpose:** Releases ZKFinger SDK resources. Close all devices and free all DBs first.
 
 **Parameters:** None
 
@@ -253,7 +256,7 @@ func (d *Device) AcquireFingerprint(image []byte) ([]byte, error)
 **Return value:**
 
 - `[]byte, nil`: Extracted fingerprint template slice trimmed to actual size
-- `nil, error`: Capture or extraction failed (e.g., `ErrCaptureFailed`)
+- `nil, error`: Capture or extraction failed. `ErrCaptureFailed` is returned while no finger is on the sensor, so retry after a short delay (see [Usage Example](#9-usage-example))
 
 ### Device.AcquireFingerprintImage
 
@@ -270,7 +273,7 @@ func (d *Device) AcquireFingerprintImage(image []byte) error
 **Return value:**
 
 - `nil`: Succeeded
-- `error`: Image capture failed (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
+- `error`: Image capture failed. `ErrCaptureFailed` is returned while no finger is on the sensor (see [Appendix 2](#appendix-2-descriptions-of-returned-error-values))
 
 ### Device.GetParameter
 
@@ -454,7 +457,7 @@ func (db *DB) ExtractFromImage(path string, dpi uint) ([]byte, error)
 
 **Parameters:**
 
-- `path`: Full file system path string to the image file
+- `path`: Full file system path string to the image file. The path must be ASCII, because the SDK expects an ANSI string
 - `dpi`: Image resolution DPI unsigned integer
 
 **Return value:**
@@ -468,8 +471,10 @@ func (db *DB) ExtractFromImage(path string, dpi uint) ([]byte, error)
 package main
 
 import (
+    "errors"
     "fmt"
     "log"
+    "time"
 
     "github.com/elmyrockers/go-zkfp"
 )
@@ -503,21 +508,33 @@ func main() {
 
     fmt.Println("Device opened and Algorithm DB initialized successfully!")
 
-    // 5. Query required image buffer size and capture fingerprint
+    // 5. Query required image buffer size
     imgSizeBytes, err := dev.ImageSize()
     if err != nil {
         log.Fatalf("Failed to get image size: %v", err)
     }
-
     imgBuf := make([]byte, imgSizeBytes)
+
     fmt.Println("Please place your finger on the scanner...")
 
-    template, err := dev.AcquireFingerprint(imgBuf)
-    if err != nil {
-        log.Fatalf("Fingerprint capture failed: %v", err)
+    // 6. Poll until a finger is captured
+    var template []byte
+    for {
+        template, err = dev.AcquireFingerprint(imgBuf)
+
+        // No finger on the sensor yet: wait a moment and try again
+        if errors.Is(err, zkfp.ErrCaptureFailed) {
+            time.Sleep(100 * time.Millisecond)
+            continue
+        }
+        // Any other error is a real failure
+        if err != nil {
+            log.Fatalf("Fingerprint capture failed: %v", err)
+        }
+        break
     }
 
-    // 6. Add the captured template to the algorithm database with ID 1
+    // 7. Add the captured template to the algorithm database with ID 1
     var fingerprintID uint = 1
     if err := db.Add(fingerprintID, template); err != nil {
         log.Fatalf("Failed to add template to DB: %v", err)
@@ -552,11 +569,33 @@ func main() {
 | `ParamFakeStatus`     | `2004` | Read      | Int          | True if the lower five bits are all 1's (`value&31 == 31`).                 |
 | `ParamTemplateFormat` | `10001` | Write    | Int          | Template format (ISO/ANSI readers only; `0` = ANSI378, `1` = ISO 19794-2).  |
 
+#### Reading a parameter
+
+```go
+value, err := device.GetParameter(zkfp.ParamImageWidth, 4)
+if err != nil {
+    return err
+}
+
+width := int(binary.LittleEndian.Uint32(value))
+```
+
+#### Writing a parameter
+
+```go
+// Turn the green LED on.
+if err := device.SetParameter(zkfp.ParamGreenLED, []byte{1, 0, 0, 0}); err != nil {
+    return err
+}
+```
+
+`ImageSize()` already wraps `ParamImageSize`, so you rarely need to read it yourself.
+
 ### Appendix 2: Descriptions of Returned Error Values
 
 | Code | Go Error Value | Description |
 |---:|---|---|
-| 1 | `nil` | SDK already initialized (treated as success by `Init`) |
+| 1 | `ErrAlreadyInit` | SDK already initialized (treated as success by `Init`) |
 | 0 | `nil` | Operation succeeded |
 | -1 | `ErrInitLib` | Failed to initialize the algorithm library |
 | -2 | `ErrInitCapture` | Failed to initialize the capture library |
@@ -578,3 +617,57 @@ func main() {
 | -22 | `ErrMergeFailed` | Failed to combine registered templates |
 | -23 | `ErrOpenFile` | Opening the file failed |
 | -24 | `ErrImageProcess` | Image processing failed |
+| -100 | `ErrLoadLibrary` | Failed to load `libzkfp.dll` (ZKFinger driver) |
+
+### Appendix 3: Error Handling
+
+Every function that talks to the SDK returns a `zkfp.Error`, an `int32` that holds the original `libzkfp.dll` result code.
+
+```go
+type Error int32
+```
+
+**Basic check.** Most calls only need a normal `err != nil` check:
+
+```go
+if err := zkfp.Init(); err != nil {
+    log.Fatal(err)
+}
+```
+
+**Specific errors.** Compare against a constant with `errors.Is`. This is the usual way to wait for a finger, because `ErrCaptureFailed` only means nothing is on the sensor yet:
+
+```go
+for {
+    err := device.AcquireFingerprintImage(buf)
+    if err == nil {
+        break
+    }
+    if !errors.Is(err, zkfp.ErrCaptureFailed) {
+        return err
+    }
+    time.Sleep(100 * time.Millisecond)
+}
+```
+
+**Raw code.** Use `errors.As` to read the SDK result code:
+
+```go
+var zkErr zkfp.Error
+
+if errors.As(err, &zkErr) {
+    fmt.Println("ZKFinger error code:", int32(zkErr))
+}
+```
+
+**Messages.** Each message contains a description and the SDK code:
+
+```text
+zkfp: failed to initialize the algorithm library (-1)
+```
+
+A non-zero result code that has no constant is still returned as a `zkfp.Error`:
+
+```text
+zkfp: unknown error (<code>)
+```
