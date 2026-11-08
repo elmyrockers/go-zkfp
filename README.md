@@ -263,3 +263,9 @@ zkfp: unknown error (<code>)
 | `ErrOpenFile`         | `-23` | Failed to open a file.                                              |
 | `ErrImageProcess`     | `-24` | Fingerprint image processing failed.                                |
 | `ErrLoadLibrary`      |`-100` | Failed to load libzkfp.dll (ZKFinger Driver)                        |
+
+## Example Project
+
+Here is a private desktop app built with go-zkfp (source code not public):
+
+<p align="center"><img src="/img/example-project.png" width="600px" alt="Screenshot of a private desktop app using go-zkfp"></p>
