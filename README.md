@@ -266,7 +266,7 @@ zkfp: unknown error (<code>)
 
 ## Example Project
 
-A desktop app that I built with **go-zkfp** (private repository, source code not public):
+A desktop app that I built with `go-zkfp` *(private repository, source code not public)*:
 
 ### MedicSign
 MedicSign lets doctors and patients sign contracts with their fingerprint. It was built with security in mind: fingerprint data is stored in encrypted form, and every signed contract includes a built-in check that reveals any tampering.
