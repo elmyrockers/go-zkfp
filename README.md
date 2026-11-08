@@ -266,6 +266,6 @@ zkfp: unknown error (<code>)
 
 ## Example Project
 
-Here is a screenshot of a desktop app that I built with go-zkfp (private repository, source code not public):
+Here is a screenshot of a desktop app that I built with **go-zkfp** (private repository, source code not public):
 
 <p align="center"><img src="/img/example-project.jpg" alt="Screenshot of a private desktop app using go-zkfp"></p>
