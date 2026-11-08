@@ -268,4 +268,4 @@ zkfp: unknown error (<code>)
 
 Here is a private desktop app built with go-zkfp (source code not public):
 
-<p align="center"><img src="/img/example-project.jpg" width="600px" alt="Screenshot of a private desktop app using go-zkfp"></p>
+<p align="center"><img src="/img/example-project.jpg" alt="Screenshot of a private desktop app using go-zkfp"></p>
