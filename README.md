@@ -268,4 +268,5 @@ zkfp: unknown error (<code>)
 
 Here is a screenshot of a desktop app that I built with **go-zkfp** (private repository, source code not public):
 
+### MedicSign
 <p align="center"><img src="/img/example-project.jpg" alt="Screenshot of a private desktop app using go-zkfp"></p>
