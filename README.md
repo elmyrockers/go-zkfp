@@ -276,3 +276,7 @@ MedicSign lets doctors and patients sign contracts with their fingerprint. It wa
     <br>
     <sub>Screenshot uses demo data only.</sub>
 </p>
+
+## License
+
+This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
